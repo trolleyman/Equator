@@ -29,7 +29,10 @@ pub fn get_editor() -> &'static mut Editor {
 }
 
 fn main() {
-	gtk::init();
+	match gtk::init() {
+		Err(_) => panic!("GTK could not be initialized"),
+		_ => {}
+	}
 	
 	let mut temp_edit = Editor::new();
 	unsafe {

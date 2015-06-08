@@ -98,7 +98,7 @@ pub fn render(widg: &Widget, c: &Context) {
 	x = x.floor();
 	y = y.floor();
 	c.translate(x, y);
-	println!("{}, {}", x, y);
+	//extent.translate(x, y);
 	
 	c.new_path();
 	c.append_path(&path);
@@ -109,6 +109,11 @@ pub fn render(widg: &Widget, c: &Context) {
 	
 	c.set_source_rgb(0.0, 0.0, 0.0);
 	c.fill();
+	
+	c.rectangle(extent.x0, extent.y0, extent.w(), extent.h());
+	c.set_line_width(1.0);
+	c.set_line_cap(::cairo::LineCap::LineCapSquare);
+	c.stroke();
 }
 
 static mut cursor_rect_pos: (f64, f64) = (::std::f64::NAN, ::std::f64::NAN);
@@ -150,7 +155,7 @@ fn get_ascent(c: &Context) -> f64 { // TODO: Does the current text size factor i
 	c.font_extents().ascent
 }
 fn get_descent(c: &Context) -> f64 {
-	c.font_extents().descent
+	c.font_extents().descent / 4.0
 }
 
 /// Paths an expression given onto the context given. Takes into account the current position of the context and the position of the cursor given.
@@ -177,7 +182,7 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				c.text_path(&s);
 				c.rel_move_to(1.0, 0.0);
 				let (end_x, _) = c.get_current_point();
-				let extent = Extent {x0:start_x, y0:start_y-get_ascent(c), x1:end_x, y1:start_y-get_descent(c)}; // Calculate char's extent
+				let extent = Extent {x0:start_x, y0:start_y-get_ascent(c), x1:end_x, y1:start_y+get_descent(c)}; // Calculate char's extent
 				full_extent = full_extent.enclosing(&extent); // Update the expression's extent to include the new char
 			},
 			&VToken::Exp(ref inner_expr) => {
@@ -224,11 +229,10 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				
 				c.new_path();
 				let cursor_rect_set_before = unsafe { !cursor_rect_pos.0.is_nan() && !cursor_rect_pos.1.is_nan() };
-				path_expr(c, inner_expr.clone(), cursor_expr.clone(), cursor_pos);
+				let inner_extents = path_expr(c, inner_expr.clone(), cursor_expr.clone(), cursor_pos);
 				let cursor_rect_set_after = unsafe { !cursor_rect_pos.0.is_nan() && !cursor_rect_pos.1.is_nan() };
 				
 				let inner_path = c.copy_path();
-				let inner_extents = Extent::new(c.fill_extents());
 				
 				let inner_w = inner_extents.w();
 				let inner_h = inner_extents.h();
@@ -280,7 +284,10 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				c.append_path(&inner_path);
 				
 				c.restore();
-				c.move_to(orig_x + start_w + inner_w + 10.0, orig_y);
+				let end_x = orig_x + start_w + inner_w + 10.0;
+				c.move_to(end_x, orig_y);
+				let sqrt_whole_extent = Extent{x0:orig_x, y0:inner_y_bot-h, x1:end_x, y1:inner_y_bot};
+				full_extent = full_extent.enclosing(&sqrt_whole_extent);
 			},
 			&VToken::Func(ref func_type, ref inner_expr) => {
 				// Paths the beginning of the function, the " sin("
@@ -293,13 +300,13 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				
 				c.new_path();
 				let cursor_rect_set_before = unsafe { !cursor_rect_pos.0.is_nan() && !cursor_rect_pos.1.is_nan() };
-				path_expr(c, inner_expr.clone(), cursor_expr.clone(), cursor_pos);
+				let mut inner_extents = path_expr(c, inner_expr.clone(), cursor_expr.clone(), cursor_pos);
 				let cursor_rect_set_after = unsafe { !cursor_rect_pos.0.is_nan() && !cursor_rect_pos.1.is_nan() };
 				
 				let func_path = c.copy_path();
-				let func_extents = Extent::new(c.fill_extents());
-				let (mut x, _) = align(&func_extents, orig_x, orig_y, MidRight);
+				let (mut x, _) = align(&inner_extents, orig_x, orig_y, MidRight);
 				x = x.floor();
+				inner_extents.translate(x, 0.0);
 				
 				unsafe {
 					if !cursor_rect_set_before && cursor_rect_set_after {
@@ -313,8 +320,11 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				c.translate(x, 0.0);
 				c.append_path(&func_path);
 				c.restore();
-				c.move_to(orig_x + func_extents.w(), orig_y); // Moves the current point onwards the width of the func_path.
+				c.move_to(orig_x + inner_extents.w(), orig_y); // Moves the current point onwards the width of the func_path.
 				c.text_path(")");
+				let end_x = c.get_current_point().0 + 1.0;
+				let outer_extent = Extent{x0:orig_x, y0:orig_y-get_ascent(c), x1:end_x, y1:orig_y+get_descent(c)};
+				full_extent = full_extent.enclosing(&outer_extent).enclosing(&inner_extents);
 			}
 		}
 	}
@@ -326,46 +336,32 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 	}
 	
 	if len == 0 {
-		let w: f64 = 14.0 * get_scale(c);
-		let h: f64 = 14.0 * get_scale(c);
-		const SPACING: f64 = 1.0;
-		let (x, y) = c.get_current_point();
-		
-		if cursor_in_ex && cursor_pos == 0 {
-			// Draw a filled in box
-			c.rectangle(x+SPACING, y, w, -h);
-		} else {
-			// Draw an empty box
-			const INNER: f64 = 1.0; // The inner size of the empty box.
-			
-			c.rectangle(x+SPACING        , y-h    , w, INNER); //top
-			c.rectangle(x+SPACING        , y-h    , INNER, h); //left
-			c.rectangle(x+SPACING        , y-INNER, w, INNER); //bottom
-			c.rectangle(x+SPACING+w-INNER, y-    h, INNER, h); // right
-		}
-		c.rel_move_to(w + 2.0*SPACING, 0.0);
-	} else if len == 1 {
-		if let VToken::Exp(_) = expr.borrow().tokens[0] {
-			let w: f64 = 14.0 * get_scale(c);
-			let h: f64 = 14.0 * get_scale(c);
-			const SPACING: f64 = 1.0;
-			let (x, y) = c.get_current_point();
-			
-			if cursor_in_ex && cursor_pos == 0 {
-				// Draw a filled in box
-				c.rectangle(x+SPACING, y, w, -h);
-			} else {
-				// Draw an empty box
-				const INNER: f64 = 1.0; // The inner size of the empty box.
-				
-				c.rectangle(x+SPACING        , y-h    , w, INNER); //top
-				c.rectangle(x+SPACING        , y-h    , INNER, h); //left
-				c.rectangle(x+SPACING        , y-INNER, w, INNER); //bottom
-				c.rectangle(x+SPACING+w-INNER, y-    h, INNER, h); // right
-			}
-			c.rel_move_to(w + 2.0*SPACING, 0.0);
-		}
+		let box_extent = draw_box(c, cursor_in_ex && cursor_pos == 0);
+		full_extent = full_extent.enclosing(&box_extent);
 	}
 	
 	full_extent
+}
+
+// Draws a box at the current position, with a scale that is affected by the font size.
+fn draw_box(c: &Context, filled: bool) -> Extent {
+	let w: f64 = 14.0 * get_scale(c);
+	let h: f64 = 14.0 * get_scale(c);
+	const SPACING: f64 = 1.0;
+	let (x, y) = c.get_current_point();
+	
+	if filled {
+		// Draw a filled in box
+		c.rectangle(x+SPACING, y, w, -h);
+	} else {
+		// Draw an empty box
+		const INNER: f64 = 1.0; // The inner size of the empty box.
+		
+		c.rectangle(x+SPACING        , y-h    , w, INNER); //top
+		c.rectangle(x+SPACING        , y-h    , INNER, h); //left
+		c.rectangle(x+SPACING        , y-INNER, w, INNER); //bottom
+		c.rectangle(x+SPACING+w-INNER, y-    h, INNER, h); // right
+	}
+	c.rel_move_to(w + 2.0*SPACING, 0.0);
+	Extent{x0:x, y0:y-get_ascent(c), x1:c.get_current_point().0, y1:y+get_descent(c)}
 }

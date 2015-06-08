@@ -54,7 +54,7 @@ pub fn init_gui() {
 		
 		let c = gdk::keyval_to_unicode(event.keyval).unwrap_or(' ');
 		let name = gdk::keyval_name(event.keyval).unwrap_or(" ".to_string());
-		println!("key: {0:#x} : {1} : {2}", event.keyval, c, name);
+		println!("key: {0:#08x} : {1} : {2}", event.keyval, c, name);
 		
 		Inhibit(handled)
 	});
