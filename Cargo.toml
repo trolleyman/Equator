@@ -1,0 +1,29 @@
+[package]
+name = "equator"
+version = "0.0.1"
+authors = ["Callum Tolley <cgtrolley@gmail.com>"]
+
+#[dependencies]
+#gdk = "*"
+#gtk = "*"
+#cairo-rs = "*"
+
+[dependencies.gdk]
+git = "https://github.com/rust-gnome/gdk"
+
+[dependencies.gtk]
+git = "https://github.com/rust-gnome/gtk"
+
+[dependencies.cairo-rs]
+git = "https://github.com/rust-gnome/cairo"
+
+[features]
+gtk_3_6 = ["gtk/gtk_3_6"]
+
+#[dependencies.gtk]
+#git = "https://github.com/rust-gnome/gtk.git"
+#features = ["gtk_3_6"]
+
+#[dependencies.gtk]
+#git = "https://github.com/rust-gnome/gtk.git"
+#features = ["gtk_3_6"]
