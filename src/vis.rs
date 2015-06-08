@@ -31,6 +31,7 @@ pub enum ParseErrorType {
 pub enum VToken {
 	Char(char),
 	Exp(Rc<RefCell<VExpr>>),
+	//Root(Rc<RefCell<VExpr>>, Rc<RefCell<VExpr>>),
 	Func(FuncType, Rc<RefCell<VExpr>>)
 }
 impl VToken {
