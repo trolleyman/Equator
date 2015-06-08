@@ -14,8 +14,6 @@ use render::Extent;
 const MAX_BUTTON_X: usize = 5;
 const MAX_BUTTON_Y: usize = 3;
 
-
-
 pub fn init_gui() {
 	assert_eq!(::std::mem::size_of::<Extent>(), ::std::mem::size_of::<(f64,f64,f64,f64)>());
 	
