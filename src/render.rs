@@ -37,6 +37,12 @@ impl Extent {
 			y1: self.y1.max(other.y1)  // max y
 		}
 	}
+	pub fn translate(&mut self, x: f64, y: f64) {
+		self.x0 += x;
+		self.y0 += y;
+		self.x1 += x;
+		self.y1 += y;
+	}
 }
 
 const INIT_FONT_SIZE: f64 = 24.0;
@@ -84,6 +90,7 @@ pub fn render(widg: &Widget, c: &Context) {
 	c.identity_matrix();
 
 	let extent = path_editor(c, edit);
+	println!("{:?}", extent);
 	let path = c.copy_path();
 	
 	//let (mut x, mut y) = align(extent, alloc_w/2.0, alloc_h/2.0, Mid);
@@ -91,6 +98,7 @@ pub fn render(widg: &Widget, c: &Context) {
 	x = x.floor();
 	y = y.floor();
 	c.translate(x, y);
+	println!("{}, {}", x, y);
 	
 	c.new_path();
 	c.append_path(&path);
@@ -101,13 +109,6 @@ pub fn render(widg: &Widget, c: &Context) {
 	
 	c.set_source_rgb(0.0, 0.0, 0.0);
 	c.fill();
-	
-	//let sqrt_x = 150.0;
-	//path_sqrt(c, sqrt_x, 20.0, 100.0, 28.0);
-	//path_sqrt(c, sqrt_x, 60.0, 100.0, 28.0 * 2.0);
-	//path_sqrt(c, sqrt_x, 120.0, 100.0, 28.0 * 3.0);
-	//path_sqrt(c, sqrt_x, 190.0, 100.0, 28.0 * 4.0);
-	//c.fill();
 }
 
 static mut cursor_rect_pos: (f64, f64) = (::std::f64::NAN, ::std::f64::NAN);
@@ -142,19 +143,14 @@ fn path_editor(c: &Context, edit: &Editor) -> Extent {
 fn get_scale(c: &Context) -> f64 {
 	c.get_font_matrix().xx / INIT_FONT_SIZE
 }
-
 fn set_scale(c: &Context, scale: f64) {
 	c.set_font_size(INIT_FONT_SIZE * scale);
 }
-
-fn get_ascent(c: &Context) -> f64 {
-	
+fn get_ascent(c: &Context) -> f64 { // TODO: Does the current text size factor into this?
+	c.font_extents().ascent
 }
 fn get_descent(c: &Context) -> f64 {
-	
-}
-fn get_char_w(c: &Context, chr: char) -> f64 {
-	
+	c.font_extents().descent
 }
 
 /// Paths an expression given onto the context given. Takes into account the current position of the context and the position of the cursor given.
@@ -166,6 +162,8 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 		c.move_to(0.0, 0.0);
 	}
 	
+	let mut full_extent = Extent{x0:0.0, y0:0.0, x1:0.0, y1:0.0};
+	
 	// loop through the tokens in the array
 	let len = expr.borrow().tokens.len();
 	for i in 0..len {
@@ -174,8 +172,13 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 		}
 		match &expr.borrow().tokens[i] {
 			&VToken::Char(ref chr) => {
-				c.text_path(char::to_string(&chr).as_str());
+				let (start_x, start_y) = c.get_current_point();
+				let s = char::to_string(&chr);
+				c.text_path(&s);
 				c.rel_move_to(1.0, 0.0);
+				let (end_x, _) = c.get_current_point();
+				let extent = Extent {x0:start_x, y0:start_y-get_ascent(c), x1:end_x, y1:start_y-get_descent(c)}; // Calculate char's extent
+				full_extent = full_extent.enclosing(&extent); // Update the expression's extent to include the new char
 			},
 			&VToken::Exp(ref inner_expr) => {
 				c.save();
@@ -186,14 +189,14 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				c.new_path();
 				let cursor_rect_set_before = unsafe { !cursor_rect_pos.0.is_nan() && !cursor_rect_pos.1.is_nan() };
 				set_scale(c, 0.8);
-				path_expr(c, inner_expr.clone(), cursor_expr.clone(), cursor_pos);
+				let mut exp_extents = path_expr(c, inner_expr.clone(), cursor_expr.clone(), cursor_pos);
 				let cursor_rect_set_after = unsafe { !cursor_rect_pos.0.is_nan() && !cursor_rect_pos.1.is_nan() };
 				
 				let exp_path = c.copy_path();
-				let exp_extents = Extent::new(c.fill_extents());
 				let (mut x, mut y) = align(&exp_extents, orig_x + 1.0, orig_y - 14.0 * get_scale(c), TopRight);
 				x = x.floor();
 				y = y.floor();
+				exp_extents.translate(x, y);
 				
 				unsafe {
 					if !cursor_rect_set_before && cursor_rect_set_after {
@@ -211,6 +214,7 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				c.restore();
 				set_scale(c, orig_scale);
 				c.move_to(orig_x + exp_extents.w() + 5.0, orig_y); // Moves the current point onwards the width of the exp_path.
+				full_extent = full_extent.enclosing(&exp_extents);
 			},
 			&VToken::Func(FuncType::Sqrt, ref inner_expr) => {
 				// Get the extents of the new expression.
@@ -362,4 +366,6 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 			c.rel_move_to(w + 2.0*SPACING, 0.0);
 		}
 	}
+	
+	full_extent
 }
