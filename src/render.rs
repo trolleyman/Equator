@@ -110,7 +110,8 @@ pub fn render(widg: &Widget, c: &Context) {
 	c.set_source_rgb(0.0, 0.0, 0.0);
 	c.fill();
 	
-	c.rectangle(extent.x0, extent.y0, extent.w(), extent.h());
+	c.set_source_rgb(1.0, 0.0, 0.0);
+	c.rectangle(extent.x0.floor(), extent.y0.floor(), extent.w().floor(), extent.h().floor());
 	c.set_line_width(1.0);
 	c.set_line_cap(::cairo::LineCap::LineCapSquare);
 	c.stroke();
@@ -142,7 +143,7 @@ static mut cursor_rect_scale: f64 = 1.0;
 
 fn path_editor(c: &Context, edit: &Editor) -> Extent {
 	unsafe { cursor_rect_pos = (::std::f64::NAN, ::std::f64::NAN); cursor_rect_scale = 1.0; }
-	path_expr(c, edit.root_ex.clone(), edit.ex.clone(), edit.pos)
+	path_expr(c, edit.root_ex.clone(), edit.ex.clone(), edit.pos, &box_extent(c))
 }
 
 fn get_scale(c: &Context) -> f64 {
@@ -159,7 +160,8 @@ fn get_descent(c: &Context) -> f64 {
 }
 
 /// Paths an expression given onto the context given. Takes into account the current position of the context and the position of the cursor given.
-fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usize) -> Extent {
+/// prev_expr_extent is the extent of the token last pathed, before the current function.
+fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usize, prev_tok_extent: &Extent) -> Extent {
 	let cursor_in_ex: bool = unsafe {
 		expr.as_unsafe_cell().get() == cursor_expr.as_unsafe_cell().get()
 	};
@@ -167,10 +169,20 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 		c.move_to(0.0, 0.0);
 	}
 	
-	let mut full_extent = Extent{x0:0.0, y0:0.0, x1:0.0, y1:0.0};
+	let (expr_x0, expr_y0) = c.get_current_point();
+	let mut full_extent = box_extent(c);
+	let mut prev_extent = prev_tok_extent.clone();
+	
+	let len = expr.borrow().tokens.len();
+	
+	if len == 1 {
+		if match expr.borrow().tokens[0] { VToken::Exp(_) => true, _ => false } {
+			let box_extent = draw_box(c, cursor_in_ex && cursor_pos == 0);
+			full_extent = full_extent.enclosing(&box_extent);
+		}
+	}
 	
 	// loop through the tokens in the array
-	let len = expr.borrow().tokens.len();
 	for i in 0..len {
 		if cursor_in_ex && cursor_pos == i {
 			unsafe { cursor_rect_pos = c.get_current_point(); cursor_rect_scale = get_scale(c); }
@@ -183,7 +195,7 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				c.rel_move_to(1.0, 0.0);
 				let (end_x, _) = c.get_current_point();
 				let extent = Extent {x0:start_x, y0:start_y-get_ascent(c), x1:end_x, y1:start_y+get_descent(c)}; // Calculate char's extent
-				full_extent = full_extent.enclosing(&extent); // Update the expression's extent to include the new char
+				prev_extent = extent;
 			},
 			&VToken::Exp(ref inner_expr) => {
 				c.save();
@@ -194,11 +206,14 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				c.new_path();
 				let cursor_rect_set_before = unsafe { !cursor_rect_pos.0.is_nan() && !cursor_rect_pos.1.is_nan() };
 				set_scale(c, 0.8);
-				let mut exp_extents = path_expr(c, inner_expr.clone(), cursor_expr.clone(), cursor_pos);
+				let mut exp_extents = path_expr(c, inner_expr.clone(), cursor_expr.clone(), cursor_pos, &prev_extent);
 				let cursor_rect_set_after = unsafe { !cursor_rect_pos.0.is_nan() && !cursor_rect_pos.1.is_nan() };
 				
 				let exp_path = c.copy_path();
-				let (mut x, mut y) = align(&exp_extents, orig_x + 1.0, orig_y - 14.0 * get_scale(c), TopRight);
+				let anchor_x = prev_extent.x1;
+				let anchor_y = prev_extent.y0 + prev_extent.h() / 2.0;
+				//println!("anchor_y ({}) = prev_extent.y0 ({}) + prev_extent.h() ({}) / 2.0 ({})", anchor_y, prev_extent.y0, prev_extent.h(), prev_extent.h() / 2.0);
+				let (mut x, mut y) = align(&exp_extents, anchor_x, anchor_y, TopRight);
 				x = x.floor();
 				y = y.floor();
 				exp_extents.translate(x, y);
@@ -211,6 +226,7 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 					}
 				}
 				
+				// All together now!
 				c.new_path();
 				c.append_path(&orig_path);
 				c.translate(x, y);
@@ -218,8 +234,8 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				c.identity_matrix();
 				c.restore();
 				set_scale(c, orig_scale);
-				c.move_to(orig_x + exp_extents.w() + 5.0, orig_y); // Moves the current point onwards the width of the exp_path.
-				full_extent = full_extent.enclosing(&exp_extents);
+				c.move_to(orig_x + exp_extents.w() + 2.0, orig_y); // Moves the current point onwards the width of the exp_path.
+				prev_extent = exp_extents;
 			},
 			&VToken::Func(FuncType::Sqrt, ref inner_expr) => {
 				// Get the extents of the new expression.
@@ -229,7 +245,7 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				
 				c.new_path();
 				let cursor_rect_set_before = unsafe { !cursor_rect_pos.0.is_nan() && !cursor_rect_pos.1.is_nan() };
-				let inner_extents = path_expr(c, inner_expr.clone(), cursor_expr.clone(), cursor_pos);
+				let inner_extents = path_expr(c, inner_expr.clone(), cursor_expr.clone(), cursor_pos, &prev_extent);
 				let cursor_rect_set_after = unsafe { !cursor_rect_pos.0.is_nan() && !cursor_rect_pos.1.is_nan() };
 				
 				let inner_path = c.copy_path();
@@ -287,7 +303,7 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				let end_x = orig_x + start_w + inner_w + 10.0;
 				c.move_to(end_x, orig_y);
 				let sqrt_whole_extent = Extent{x0:orig_x, y0:inner_y_bot-h, x1:end_x, y1:inner_y_bot};
-				full_extent = full_extent.enclosing(&sqrt_whole_extent);
+				prev_extent = sqrt_whole_extent;
 			},
 			&VToken::Func(ref func_type, ref inner_expr) => {
 				// Paths the beginning of the function, the " sin("
@@ -300,7 +316,7 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				
 				c.new_path();
 				let cursor_rect_set_before = unsafe { !cursor_rect_pos.0.is_nan() && !cursor_rect_pos.1.is_nan() };
-				let mut inner_extents = path_expr(c, inner_expr.clone(), cursor_expr.clone(), cursor_pos);
+				let mut inner_extents = path_expr(c, inner_expr.clone(), cursor_expr.clone(), cursor_pos, &prev_extent);
 				let cursor_rect_set_after = unsafe { !cursor_rect_pos.0.is_nan() && !cursor_rect_pos.1.is_nan() };
 				
 				let func_path = c.copy_path();
@@ -324,9 +340,11 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				c.text_path(")");
 				let end_x = c.get_current_point().0 + 1.0;
 				let outer_extent = Extent{x0:orig_x, y0:orig_y-get_ascent(c), x1:end_x, y1:orig_y+get_descent(c)};
-				full_extent = full_extent.enclosing(&outer_extent).enclosing(&inner_extents);
+				let func_extent = outer_extent.enclosing(&inner_extents);
+				prev_extent = func_extent;
 			}
 		}
+		full_extent = full_extent.enclosing(&prev_extent);
 	}
 
 	if len != 0 {
@@ -338,11 +356,20 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 	if len == 0 {
 		let box_extent = draw_box(c, cursor_in_ex && cursor_pos == 0);
 		full_extent = full_extent.enclosing(&box_extent);
+		c.rel_move_to(box_extent.w(), 0.0);
 	}
 	
 	full_extent
 }
 
+fn box_extent(c: &Context) -> Extent {
+	let w: f64 = 14.0 * get_scale(c);
+	let h: f64 = 14.0 * get_scale(c);
+	const SPACING: f64 = 1.0;
+	let (x, y) = c.get_current_point();
+	
+	Extent{x0:x, y0:y-get_ascent(c), x1:c.get_current_point().0, y1:y+get_descent(c)}
+}
 // Draws a box at the current position, with a scale that is affected by the font size.
 fn draw_box(c: &Context, filled: bool) -> Extent {
 	let w: f64 = 14.0 * get_scale(c);
@@ -362,6 +389,6 @@ fn draw_box(c: &Context, filled: bool) -> Extent {
 		c.rectangle(x+SPACING        , y-INNER, w, INNER); //bottom
 		c.rectangle(x+SPACING+w-INNER, y-    h, INNER, h); // right
 	}
-	c.rel_move_to(w + 2.0*SPACING, 0.0);
+	c.move_to(x + w + 2.0*SPACING, y);
 	Extent{x0:x, y0:y-get_ascent(c), x1:c.get_current_point().0, y1:y+get_descent(c)}
 }
