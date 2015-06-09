@@ -90,7 +90,7 @@ pub fn render(widg: &Widget, c: &Context) {
 	c.identity_matrix();
 
 	let extent = path_editor(c, edit);
-	println!("{:?}", extent);
+	//println!("{:?}", extent);
 	let path = c.copy_path();
 	
 	//let (mut x, mut y) = align(extent, alloc_w/2.0, alloc_h/2.0, Mid);
@@ -110,36 +110,15 @@ pub fn render(widg: &Widget, c: &Context) {
 	c.set_source_rgb(0.0, 0.0, 0.0);
 	c.fill();
 	
-	c.set_source_rgb(1.0, 0.0, 0.0);
-	c.rectangle(extent.x0.floor(), extent.y0.floor(), extent.w().floor(), extent.h().floor());
-	c.set_line_width(1.0);
-	c.set_line_cap(::cairo::LineCap::LineCapSquare);
-	c.stroke();
+	//c.set_source_rgb(1.0, 0.0, 0.0);
+	//c.rectangle(extent.x0.floor(), extent.y0.floor(), extent.w().floor(), extent.h().floor());
+	//c.set_line_width(1.0);
+	//c.set_line_cap(::cairo::LineCap::LineCapSquare);
+	//c.stroke();
 }
 
 static mut cursor_rect_pos: (f64, f64) = (::std::f64::NAN, ::std::f64::NAN);
 static mut cursor_rect_scale: f64 = 1.0;
-
-/*fn path_sqrt(c: &Context, x:f64, y:f64, w:f64, h:f64) {
-	let bottom_h = (h/3.0).floor();
-	//let top_h = bottom_h * 2.0;
-	let scale = (h/24.0).max(1.0);
-	let ground_tip_h = h/12.0;
-	let ground_tip_w = 0.5*scale;
-	
-	c.move_to(x, y);
-	//c.rel_line_to(1.5*scale, -2.0*scale);
-	c.rel_line_to(3.0*scale, bottom_h-ground_tip_h);
-	c.rel_line_to(3.0*scale, ground_tip_h-h);
-	c.rel_line_to(w, 0.0);
-	c.rel_line_to(0.0, 1.0);
-	c.rel_line_to(1.0-w, 0.0);
-	c.rel_line_to(-1.0-3.0*scale+ground_tip_w/2.0, h-1.0);
-	c.rel_line_to(-ground_tip_w, 0.0);
-	c.rel_line_to(-3.0*scale-ground_tip_w/2.0, 1.0-bottom_h);
-	//c.rel_line_to(-2.0*scale, 2.0*scale);
-	c.line_to(x, y);
-}*/
 
 fn path_editor(c: &Context, edit: &Editor) -> Extent {
 	unsafe { cursor_rect_pos = (::std::f64::NAN, ::std::f64::NAN); cursor_rect_scale = 1.0; }
@@ -169,7 +148,6 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 		c.move_to(0.0, 0.0);
 	}
 	
-	let (expr_x0, expr_y0) = c.get_current_point();
 	let mut full_extent = box_extent(c);
 	let mut prev_extent = prev_tok_extent.clone();
 	
@@ -364,11 +342,11 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 
 fn box_extent(c: &Context) -> Extent {
 	let w: f64 = 14.0 * get_scale(c);
-	let h: f64 = 14.0 * get_scale(c);
+	//let h: f64 = 14.0 * get_scale(c);
 	const SPACING: f64 = 1.0;
 	let (x, y) = c.get_current_point();
 	
-	Extent{x0:x, y0:y-get_ascent(c), x1:c.get_current_point().0, y1:y+get_descent(c)}
+	Extent{x0:x, y0:y-get_ascent(c), x1:x + w + 2.0*SPACING, y1:y+get_descent(c)}
 }
 // Draws a box at the current position, with a scale that is affected by the font size.
 fn draw_box(c: &Context, filled: bool) -> Extent {
@@ -390,5 +368,5 @@ fn draw_box(c: &Context, filled: bool) -> Extent {
 		c.rectangle(x+SPACING+w-INNER, y-    h, INNER, h); // right
 	}
 	c.move_to(x + w + 2.0*SPACING, y);
-	Extent{x0:x, y0:y-get_ascent(c), x1:c.get_current_point().0, y1:y+get_descent(c)}
+	Extent{x0:x, y0:y-get_ascent(c), x1:x + w + 2.0*SPACING, y1:y+get_descent(c)}
 }
