@@ -1,4 +1,5 @@
 use std::fmt;
+use std::iter::RandomAccessIterator;
 
 use gdk::{key, EventKey, self};
 
@@ -135,6 +136,19 @@ impl Editor {
 				self.ex = inner_ref;
 				self.pos = 0;
 			},
+			(2, 0) => {
+				// Produce cube root (∛)
+				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
+				let degree_ref = VExpr::with_parent(self.ex.clone()).to_ref();
+				degree_ref.borrow_mut().tokens.push(VToken::Char('3'));
+				let root = VToken::Root(degree_ref.clone(), inner_ref.clone());
+				
+				self.insert_token(root);
+				
+				// Move cursor inside
+				self.ex = inner_ref;
+				self.pos = 0;
+			},
 			_ => unhandled = true,
 		}
 		
@@ -239,11 +253,35 @@ impl Editor {
 	pub fn move_left(&mut self) -> bool {
 		if self.pos == 0 || self.ex.borrow().tokens.get(self.pos - 1).is_none() {
 			// Move up to the parent, if there is one
-			return self.move_up();
+			let orig_ex = self.ex.clone();
+			if !self.move_up() {
+				return false;
+			}
+			let exprs = self.ex.borrow().tokens[self.pos].get_inner_expr();
+			let mut found: isize = -1;
+			for i in 0..exprs.len() {
+				if unsafe { exprs[i].as_unsafe_cell().get() == orig_ex.as_unsafe_cell().get() } {
+					found = i as isize;
+					break;
+				}
+			}
+			if found <= 0 || found as usize >= exprs.len() {
+				if self.pos != 0 {
+					//self.pos -= 1;
+				} else {
+					return false;
+				}
+			} else {
+				self.ex = exprs[found as usize - 1].clone();
+				self.pos = self.ex.borrow().tokens.len();
+			}
+			return true;
 		} else {
-			// Now try and drill down into a token
+			// Try and drill down into a token
 			self.pos -= 1;
-			if self.move_down() {
+			let exprs = self.ex.borrow().tokens[self.pos].get_inner_expr();
+			if exprs.len() != 0 {
+				self.ex = exprs[exprs.len() - 1].clone();
 				self.pos = self.ex.borrow().tokens.len();
 			}
 			return true;
@@ -256,6 +294,7 @@ impl Editor {
 	/// 2|3^(98)+ => 23|^(98)+ => 23|^(98)+ => 23^(|98)+ => 23^(9|8)+ => 23^(98|)+ => 23^(98)|+ => 23^(98)+| => 23^(98)+| ... etc.
 	pub fn move_right(&mut self) -> bool {
 		let orig_pos = self.pos;
+		let orig_ex = self.ex.clone();
 		
 		// Try move down
 		if !self.move_down() {
@@ -268,13 +307,29 @@ impl Editor {
 					self.pos = orig_pos;
 					return false;
 				} else {
-					self.pos += 1;
+					let exprs = self.ex.borrow().tokens[self.pos].get_inner_expr();
+					let mut found: isize = -1;
+					for i in 0..exprs.len() {
+						if unsafe { exprs[i].as_unsafe_cell().get() == orig_ex.as_unsafe_cell().get() } {
+							found = i as isize;
+							break;
+						}
+					}
+					if found == -1 || found as usize >= exprs.len() - 1 {
+						if self.pos < self.ex.borrow().tokens.len() {
+							self.pos += 1;
+						} else {
+							return false;
+						}
+					} else {
+						self.ex = exprs[found as usize+1].clone();
+						self.pos = 0;
+					}
 				}
 			}
 		}
 		return true;
 	}
-	
 	
 	/// Trys to move the cursor down into the current token. Returns true if the operation was successful.
 	pub fn move_down(&mut self) -> bool {
@@ -284,13 +339,13 @@ impl Editor {
 			Some(t) => t,
 			None => return false
 		};
-		match tok.get_inner_expr() {
-			Some(ref_ex) => {
-				self.ex = ref_ex.clone();
+		match tok.get_inner_expr().iter().idx(0) {
+			Some(expr) => {
+				self.ex = expr.clone();
 				self.pos = 0;
-				return true;
-			}
-			None => return false
+				true
+			},
+			None => false
 		}
 	}
 	
@@ -310,13 +365,12 @@ impl Editor {
 				for i in 0..tokens.len() {
 					unsafe {
 						let tok = tokens[i].clone();
-						let inner = match tok.get_inner_expr() {
-							Some(ex) => ex,
-							None => continue
-						};
-						if inner.as_unsafe_cell().get() == ex_clone.as_unsafe_cell().get() {
-							found = true;
-							self.pos = i;
+						for inner_ex in tok.get_inner_expr().iter() {
+							if inner_ex.as_unsafe_cell().get() == ex_clone.as_unsafe_cell().get() {
+								found = true;
+								self.pos = i;
+								break;
+							}
 						}
 					}
 				}
@@ -355,10 +409,6 @@ impl Editor {
 			
 			match ex_ref.borrow().tokens[i].clone() {
 				VToken::Char(c) => {
-					//match c {
-					//	'+' | '-' | '*' | '/' => print!(" {} ", c),
-					//	_ => print!("{}", c)
-					//}
 					buffer.push(c);
 				},
 				VToken::Exp(inner_ex_ref) => {
@@ -368,8 +418,15 @@ impl Editor {
 					buffer.push(')');
 				},
 				VToken::Func(func_type, inner_ex_ref) => {
-					buffer.push_str(fmt::format(format_args!(" {}(", func_type)).as_str());
+					buffer.push_str(format!(" {}(", func_type).as_str());
 					buffer.push_str(self.expr_to_string(inner_ex_ref).as_str());
+					buffer.push(')');
+				}
+				VToken::Root(degree_ex, inner_ex) => {
+					buffer.push_str(" root(");
+					buffer.push_str(self.expr_to_string(degree_ex).as_str());
+					buffer.push_str(", ");
+					buffer.push_str(self.expr_to_string(inner_ex).as_str());
 					buffer.push(')');
 				}
 			}

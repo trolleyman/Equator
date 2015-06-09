@@ -111,6 +111,8 @@ fn get_button_grid() -> Grid {
 	buttons[1][2].set_label("tan(x)");
 	buttons[1][3].set_label("√x");
 	
+	buttons[2][0].set_label("∛x");
+	
 	buttons[0][0].connect_clicked(|_| { ::get_editor().handle_button_click(0, 0); });
 	buttons[0][1].connect_clicked(|_| { ::get_editor().handle_button_click(1, 0); });
 	buttons[0][2].connect_clicked(|_| { ::get_editor().handle_button_click(2, 0); });

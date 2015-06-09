@@ -1,4 +1,4 @@
-#![feature(core, alloc, convert)]
+#![feature(core, alloc, convert, box_syntax)]
 #![allow(non_upper_case_globals)]
 extern crate gtk;
 extern crate gdk;
