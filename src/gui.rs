@@ -18,6 +18,7 @@ pub fn init_gui() {
 	assert_eq!(::std::mem::size_of::<Extent>(), ::std::mem::size_of::<(f64,f64,f64,f64)>());
 	
 	let win: &Window = ::get_window();
+	win.set_size_request(250, 350);
 	
 	// Get controls
 	let main_grid = Grid::new().unwrap();    // This is the grid that holds all of the controls,
@@ -34,7 +35,7 @@ pub fn init_gui() {
 	let da = DrawingArea::new().unwrap();    // This is the main drawing area that the current equation is
 	da.set_vexpand(true);                    // drawn to. Has a variable size.
 	da.set_hexpand(true);
-	da.set_size_request(100, 100);
+	//da.set_size_request(500, 500);
 	da.connect_draw(|w: Widget, c: Context| {
 		render(&w, &c);
 		

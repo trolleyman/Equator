@@ -37,7 +37,7 @@ impl Extent {
 			y1: self.y1.max(other.y1)  // max y
 		}
 	}
-	pub fn translatee(&self, x: f64, y: f64) -> Extent {
+	pub fn translate(&self, x: f64, y: f64) -> Extent {
 		Extent {
 			x0:self.x0 + x,
 			y0:self.y0 + y,
@@ -95,8 +95,8 @@ pub fn render(widg: &Widget, c: &Context) {
 	//println!("{:?}", extent);
 	let path = c.copy_path();
 	
-	//let (mut x, mut y) = align(extent, alloc_w/2.0, alloc_h/2.0, Mid);
-	let (mut x, mut y) = align(&extent, 15.0, 15.0, BotRight);
+	//let (mut x, mut y) = align(&extent, alloc_w/2.0, alloc_h/2.0, Mid);
+	let (mut x, mut y) = align(&extent, 30.0, 30.0, BotRight);
 	x = x.floor();
 	y = y.floor();
 	c.translate(x, y);
@@ -197,7 +197,7 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				let (mut x, mut y) = align(&exp_extents, anchor_x, anchor_y, TopRight);
 				x = x.floor();
 				y = y.floor();
-				exp_extents = exp_extents.translatee(x, y);
+				exp_extents = exp_extents.translate(x, y);
 				
 				unsafe {
 					if !cursor_rect_set_before && cursor_rect_set_after {
@@ -241,7 +241,7 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				let func_path = c.copy_path();
 				let (mut x, _) = align(&inner_extents, orig_x, orig_y, MidRight);
 				x = x.floor();
-				inner_extents = inner_extents.translatee(x, 0.0);
+				inner_extents = inner_extents.translate(x, 0.0);
 				
 				unsafe {
 					if !cursor_rect_set_before && cursor_rect_set_after {
@@ -301,7 +301,7 @@ fn path_root(c: &Context, inner: VExprRef, degree: Option<VExprRef>, cursor_expr
 	let inner_y_bot = inner_extents.y1;
 	
 	let h = inner_h + 1.0;
-	let w = inner_w + 4.0;
+	let w = inner_w + 6.0;
 	
 	let bottom_h = (h/3.0).floor();
 	//let top_h = bottom_h * 2.0;
@@ -336,8 +336,6 @@ fn path_root(c: &Context, inner: VExprRef, degree: Option<VExprRef>, cursor_expr
 		degree_extent = Some(path_expr(c, degree.unwrap().clone(), cursor_expr.clone(), cursor_pos, &prev_tok_extent));
 		set_scale(c, scale);
 		let cursor_rect_set_after_degree = unsafe { !cursor_rect_pos.0.is_nan() && !cursor_rect_pos.1.is_nan() };
-		println!("actual before:\t {:?}", Extent::new(c.fill_extents()));
-		println!("before:\t {:?}", degree_extent.clone().unwrap());
 		
 		let actual_degree_path = c.copy_path();
 		
@@ -345,9 +343,7 @@ fn path_root(c: &Context, inner: VExprRef, degree: Option<VExprRef>, cursor_expr
 		degree_trans_x = degree_trans_x.floor();
 		degree_trans_y = degree_trans_y.floor();
 		
-		degree_extent = Some(degree_extent.unwrap().translatee(degree_trans_x, degree_trans_y));
-		
-		println!("after:\t {:?}", degree_extent.clone().unwrap());
+		degree_extent = Some(degree_extent.unwrap().translate(degree_trans_x, degree_trans_y));
 		
 		unsafe { if !cursor_rect_set_before_degree && cursor_rect_set_after_degree {
 			// Cursor_rect_pos was set in the expression. Needs to be translated.
@@ -361,8 +357,6 @@ fn path_root(c: &Context, inner: VExprRef, degree: Option<VExprRef>, cursor_expr
 		c.restore();
 		degree_path = Some(c.copy_path());
 		
-		println!("actual after:\t {:?}", Extent::new(c.fill_extents()));
-		
 		c.restore();
 	}
 	let cursor_rect_set_after_root = unsafe { !cursor_rect_pos.0.is_nan() && !cursor_rect_pos.1.is_nan() };
@@ -372,12 +366,18 @@ fn path_root(c: &Context, inner: VExprRef, degree: Option<VExprRef>, cursor_expr
 		sqrt_whole_extent = sqrt_whole_extent.enclosing(&degree_extent.unwrap());
 	}
 	let (final_align_x, _) = align(&sqrt_whole_extent, orig_x, orig_y, MidRight);
-	sqrt_whole_extent = sqrt_whole_extent.translatee(final_align_x, 0.0);
+	sqrt_whole_extent = sqrt_whole_extent.translate(final_align_x, 0.0);
+	
+	unsafe { if !cursor_rect_set_before_root && cursor_rect_set_after_root {
+		cursor_rect_pos.0 += final_align_x;
+	} }
 	
 	// 1. Path orig expression
 	c.new_path();
 	//c.translate(final_align_x, 0.0);
 	c.append_path(&orig_path);
+	
+	c.translate(final_align_x, 0.0);
 	if degree_path.is_some() {
 		c.append_path(&degree_path.unwrap());
 	}
@@ -401,7 +401,7 @@ fn path_root(c: &Context, inner: VExprRef, degree: Option<VExprRef>, cursor_expr
 	c.append_path(&inner_path);
 	
 	c.restore();
-	c.move_to(sqrt_whole_extent.x1, orig_y);
+	c.move_to(sqrt_whole_extent.x1 + 6.0, orig_y);
 	sqrt_whole_extent
 }
 
