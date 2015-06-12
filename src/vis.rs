@@ -30,14 +30,14 @@ pub enum ParseErrorType {
 #[derive(Clone, Debug)]
 pub enum VToken {
 	Char(char),
-	Exp(VExprRef),
+	Pow(VExprRef),
 	Root(VExprRef, VExprRef),
 	Func(FuncType, VExprRef)
 }
 impl VToken {
 	pub fn get_inner_expr(&self) -> Box<[VExprRef]> {
 		match self {
-			&Exp(ref ex) | &Func(_, ref ex) => box [ex.clone()],
+			&Pow(ref ex) | &Func(_, ref ex) => box [ex.clone()],
 			&Root(ref ex1, ref ex2) => box [ex1.clone(), ex2.clone()],
 			&Char(_) => box []
 		}
@@ -45,7 +45,7 @@ impl VToken {
 	
 	pub fn has_inner_expr(&self) -> bool {
 		match self {
-			&Exp(_) | &Func(_, _) | &Root(_, _) => true,
+			&Pow(_) | &Func(_, _) | &Root(_, _) => true,
 			&Char(_) => false
 		}
 	}
