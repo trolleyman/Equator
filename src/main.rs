@@ -1,4 +1,4 @@
-#![feature(core, alloc, convert, box_syntax)]
+#![feature(core, alloc, convert, box_syntax, str_char)]
 #![allow(non_upper_case_globals)]
 extern crate gtk;
 extern crate gdk;
@@ -17,6 +17,7 @@ pub mod edit;
 pub mod func;
 pub mod gui;
 pub mod render;
+pub mod com;
 
 static mut g_editor: *mut Editor = 0 as *mut Editor;
 static mut g_window: *mut Window = 0 as *mut Window;

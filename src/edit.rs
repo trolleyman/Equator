@@ -1,4 +1,3 @@
-use std::fmt;
 use std::iter::RandomAccessIterator;
 
 use gdk::{key, EventKey, self};
@@ -73,7 +72,7 @@ impl Editor {
 			(0, 0) => {
 				// Insert ^
 				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
-				let exp = VToken::Exp(inner_ref.clone());
+				let exp = VToken::Pow(inner_ref.clone());
 				
 				self.insert_token(exp);
 				
@@ -85,7 +84,7 @@ impl Editor {
 				// ^2
 				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
 				inner_ref.borrow_mut().tokens.push(VToken::Char('2'));
-				let exp = VToken::Exp(inner_ref.clone());
+				let exp = VToken::Pow(inner_ref.clone());
 				
 				self.insert_token(exp);
 				
@@ -204,7 +203,7 @@ impl Editor {
 			'^' => {
 				// Insert ^()
 				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
-				let exp = VToken::Exp(inner_ref.clone());
+				let exp = VToken::Pow(inner_ref.clone());
 				
 				self.ex.borrow_mut().tokens.insert(self.pos, exp);
 				
@@ -385,7 +384,7 @@ impl Editor {
 	
 	/// Debug prints the editor's state to the screen.
 	pub fn print(&self) {
-		println!("{}", self.to_string());
+		println!("expr   : {}", self.to_string().trim());
 	}
 	/// Gets the editor's expression as a string.
 	pub fn to_string(&self) -> String {
@@ -411,7 +410,7 @@ impl Editor {
 				VToken::Char(c) => {
 					buffer.push(c);
 				},
-				VToken::Exp(inner_ex_ref) => {
+				VToken::Pow(inner_ex_ref) => {
 					// Recursive stuff yay!
 					buffer.push_str("^(");
 					buffer.push_str(self.expr_to_string(inner_ex_ref).as_str());

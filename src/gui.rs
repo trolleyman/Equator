@@ -10,6 +10,7 @@ use cairo::Context;
 use edit::Editor;
 use render::render;
 use render::Extent;
+use com::*;
 
 const MAX_BUTTON_X: usize = 5;
 const MAX_BUTTON_Y: usize = 3;
@@ -53,7 +54,7 @@ pub fn init_gui() {
 		
 		let c = gdk::keyval_to_unicode(event.keyval).unwrap_or(' ');
 		let name = gdk::keyval_name(event.keyval).unwrap_or(" ".to_string());
-		println!("key: {0:#08x} : {1} : {2}", event.keyval, c, name);
+		println!("keypress: {0:#08x} : {1} : {2}", event.keyval, c, name);
 		
 		Inhibit(handled)
 	});
@@ -72,6 +73,13 @@ pub fn init_gui() {
 pub fn dirty_expression() {
 	::get_window().queue_draw();
 	::get_editor().print();
+	let commands = expr_to_commands(::get_editor().root_ex.clone());
+	let res = execute_commands(&commands);
+	if res.is_some() {
+		println!("result : {}", res.unwrap());
+	} else {
+		println!("result : undefined");
+	}
 }
 
 fn get_button_grid() -> Grid {

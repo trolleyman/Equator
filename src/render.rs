@@ -157,7 +157,7 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 	let len = expr.borrow().tokens.len();
 	
 	if len == 1 {
-		if match expr.borrow().tokens[0] { VToken::Exp(_) => true, _ => false } {
+		if match expr.borrow().tokens[0] { VToken::Pow(_) => true, _ => false } {
 			let box_extent = path_box(c, cursor_in_ex && cursor_pos == 0);
 			full_extent = full_extent.enclosing(&box_extent);
 		}
@@ -178,7 +178,7 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				let extent = Extent {x0:start_x, y0:start_y-get_ascent(c), x1:end_x, y1:start_y+get_descent(c)}; // Calculate char's extent
 				prev_extent = extent;
 			},
-			&VToken::Exp(ref inner_expr) => {
+			&VToken::Pow(ref inner_expr) => {
 				c.save();
 				let orig_path = c.copy_path();
 				let (orig_x, orig_y) = c.get_current_point();
@@ -300,7 +300,7 @@ fn path_root(c: &Context, inner: VExprRef, degree: Option<VExprRef>, cursor_expr
 	let inner_h = inner_extents.h();
 	let inner_y_bot = inner_extents.y1;
 	
-	let h = inner_h + 1.0;
+	let h = inner_h + 2.0;
 	let w = inner_w + 6.0;
 	
 	let bottom_h = (h/3.0).floor();

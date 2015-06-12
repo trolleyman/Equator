@@ -28,3 +28,16 @@ impl Display for FuncType {
 		return f.write_str(s);
 	}
 }
+impl FuncType {
+	pub fn execute(&self, v: f64) -> f64 {
+		match self {
+			&Sqrt => v.sqrt(),
+			&Sin => v.sin(),
+			&Cos => v.cos(),
+			&Tan => v.tan(),
+			&Arsin => v.asin(),
+			&Arcos => v.acos(),
+			&Artan => v.atan(),
+		}
+	}
+}
