@@ -73,12 +73,13 @@ pub fn init_gui() {
 pub fn dirty_expression() {
 	::get_window().queue_draw();
 	::get_editor().print();
-	let commands = expr_to_commands(::get_editor().root_ex.clone());
-	let res = execute_commands(&commands);
-	if res.is_some() {
-		println!("result : {}", res.unwrap());
-	} else {
-		println!("result : undefined");
+	let res = match expr_to_commands(::get_editor().root_ex.clone()) {
+		Ok(commands) => execute_commands(&commands),
+		Err(e) => { println!("error: {}", e); return; },
+	};
+	match res {
+		Ok(v)  => println!("result : {}", v),
+		Err(e) => println!("result : error: {}", e),
 	}
 }
 
