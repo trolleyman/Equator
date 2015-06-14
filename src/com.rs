@@ -1,15 +1,17 @@
 /// Module for turning the equation into commands
 use std::collections::HashMap;
+use std::fmt::Write;
 
 use vis::*;
 use edit::*;
 use func::*;
+use err::*;
 
 #[allow(non_snake_case)]
 mod Com {
 	pub use super::Command::*;
 }
-
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Command {
 	Var(char), // Pushes variable with char identifier to the stack
 	Int(i64), // Pushes integer literal to the stack
@@ -25,7 +27,10 @@ pub enum Command {
 	ParenClose, // NOP. Should not be in the final vector.
 }
 impl Command {
-	pub fn execute(&self, vm: &mut VM) {
+	pub fn execute(&self, vm: &mut VM) -> Result<(), ParseError> {
+		if vm.stack_size() < self.pops() {
+			return Err(StackExhausted);
+		}
 		match self {
 			&Com::Var(id) => {
 				let val = vm.get_var(id);
@@ -66,10 +71,11 @@ impl Command {
 				let a = vm.pop();
 				vm.push(b.powf(a.recip()));
 			},
-			&Com::Comma => {},
-			&Com::ParenOpen => {},
-			&Com::ParenClose => {},
+			&Com::Comma      => return Err(IllegalChar),
+			&Com::ParenOpen  => return Err(IllegalChar),
+			&Com::ParenClose => return Err(IllegalChar),
 		}
+		Ok(())
 	}
 	/// Number of numbers that this command pops from the stack
 	pub fn pops(&self) -> usize {
@@ -107,7 +113,7 @@ impl Command {
 	}
 	pub fn is_operator(&self) -> bool {
 		match self {
-			&Com::Add | &Com::Sub | &Com::Mul | &Com::Div | &Com::Pow | &Com::Func(_) | &Com::Root => true 
+			&Com::Add | &Com::Sub | &Com::Mul | &Com::Div | &Com::Pow | &Com::Func(_) | &Com::Root => true,
 			&Com::Var(_) | &Com::Int(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false
 		}
 	}
@@ -118,6 +124,20 @@ impl Command {
 			&Com::Pow => Some(3),
 			&Com::Func(_) | &Com::Root => Some(4),
 			&Com::Var(_) | &Com::Int(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => None
+		}
+	}
+	pub fn is_left_associative(&self) -> bool {
+		match self {
+			&Com::Add | &Com::Sub | &Com::Mul | &Com::Div | &Com::Func(_) | &Com::Root => true,
+			&Com::Pow => false,
+			&Com::Var(_) | &Com::Int(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false,
+		}
+	}
+	pub fn is_right_associative(&self) -> bool {
+		match self {
+			&Com::Add | &Com::Sub | &Com::Mul | &Com::Div | &Com::Func(_) | &Com::Root => false,
+			&Com::Pow => true,
+			&Com::Var(_) | &Com::Int(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false,
 		}
 	}
 }
@@ -156,19 +176,18 @@ impl VM {
 }
 
 // Changes ex into a vector of commands to execute to get the value of the expression.
-pub fn expr_to_commands(ex: VExprRef) -> Vec<Command> {
+pub fn expr_to_commands(ex: VExprRef) -> Result<Vec<Command>, ParseError> {
 	let mut infix = Vec::new();
-	expr_to_infix(ex, &mut infix);
+	try!(expr_to_infix(ex, &mut infix));
 	print!("infix  : ");
 	print_commands(&infix);
-	let mut postfix = Vec::new();
-	infix_to_postfix(&infix, &mut postfix);
+	let postfix = try!(infix_to_postfix(&infix));
 	print!("postfix: ");
 	print_commands(&postfix);
-	postfix
+	Ok(postfix)
 }
 
-fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) {
+fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseError> {
 	let mut num_buf = String::new();
 	for tok in ex.borrow().tokens.iter() {
 		match tok {
@@ -181,56 +200,126 @@ fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) {
 				infix.push(Com::Int(num_buf.parse().unwrap()));
 				num_buf.clear();
 			},
-			_ => {},
+			_ => {}
 		}
 		
 		match tok {
-			&VToken::Char(ref chr) => infix.push(Com::Var(*chr)), // Shouldn't be numeric
+			&VToken::Char(ref chr) => {
+				infix.push(match chr {
+					&CHAR_ADD => Com::Add,
+					&CHAR_SUB => Com::Sub,
+					&CHAR_MUL => Com::Mul,
+					&CHAR_DIV => Com::Div,
+					&'(' => Com::ParenOpen,
+					&')' => Com::ParenClose,
+					_ => Com::Var(*chr),
+				});
+			}, // Shouldn't be numeric
 			&VToken::Pow(ref inner_ex) => {
 				infix.push(Com::Pow);
 				infix.push(Com::ParenOpen);
-				expr_to_infix(inner_ex.clone(), infix);
+				try!(expr_to_infix(inner_ex.clone(), infix));
 				infix.push(Com::ParenClose);
 			},
 			&VToken::Root(ref degree_ex, ref inner_ex) => {
 				infix.push(Com::Root);
 				infix.push(Com::ParenOpen);
-				expr_to_infix(degree_ex.clone(), infix);
+				try!(expr_to_infix(degree_ex.clone(), infix));
 				infix.push(Com::Comma);
-				expr_to_infix(inner_ex.clone(), infix);
+				try!(expr_to_infix(inner_ex.clone(), infix));
 				infix.push(Com::ParenClose);
 			},
 			&VToken::Func(ref func, ref inner_ex) => {
 				infix.push(Com::Func(func.clone()));
 				infix.push(Com::ParenOpen);
-				expr_to_infix(inner_ex.clone(), infix);
+				try!(expr_to_infix(inner_ex.clone(), infix));
 				infix.push(Com::ParenClose);
-			},
+			}
 		}
 	}
 	if num_buf.len() >= 1 {
 		infix.push(Com::Int(num_buf.parse().unwrap()));
 	}
+	Ok(())
 }
-fn infix_to_postfix(infix: &[Command], postfix: &mut Vec<Command>) {
-	// What follows is the "shunting yard algorithm" (https://en.wikipedia.org/wiki/Shunting-yard_algorithm)
-	let stack: Vec<Command> = Vec::new();
+/// What follows is the "shunting yard algorithm" (https://en.wikipedia.org/wiki/Shunting-yard_algorithm)
+fn infix_to_postfix(infix: &[Command]) -> Result<Vec<Command>, ParseError> {
+	let mut postfix: Vec<Command> = Vec::new();
+	let mut stack: Vec<Command> = Vec::new();
 	
-}
-
-pub fn execute_commands_with_vm(coms: &[Command], vm: &mut VM) {
-	for com in coms.iter() {
-		com.execute(vm);
+	println!("tok | stack | output");
+	for tok in infix {
+		match tok {
+			&Com::Var(_) | &Com::Int(_) => postfix.push(tok.clone()),
+			&Com::Func(_) => stack.push(tok.clone()),
+			&Com::Comma => {
+				loop {
+					match stack.pop() {
+						Some(Com::ParenOpen) => { stack.push(Com::ParenOpen); break; },
+						Some(pop) => postfix.push(pop),
+						None => return Err(UnmatchedParen),
+					}
+				}
+			},
+			&Com::ParenOpen => stack.push(Com::ParenOpen),
+			&Com::ParenClose => {
+				// Push all tokens from stack to output until left parenthesis
+				loop {
+					match stack.pop() {
+						Some(Com::ParenOpen) => break,
+						Some(v) => postfix.push(v),
+						None => return Err(UnmatchedParen),
+					}
+				}
+			},
+			_ if tok.is_operator() => {
+				loop {
+					if stack.len() == 0 {
+						break;
+					}
+					let peek = stack[stack.len() - 1].clone();
+					if peek.is_operator() {
+						if (tok.is_left_associative() && tok.prescedence() <= peek.prescedence()) || (tok.is_right_associative() && tok.prescedence() > peek.prescedence()) {
+							stack.pop();
+							postfix.push(peek.clone());
+						} else {
+							break;
+						}
+					} else {
+						break;
+					}
+				}
+				stack.push(tok.clone());
+			},
+			_ => return Err(IllegalChar)
+		}
+		println!("{:?} \t| {} \t| {}", tok, commands_to_string(&stack), commands_to_string(&postfix));
 	}
+	while stack.len() > 0 {
+		let pop = stack.pop().unwrap();
+		if pop == Com::ParenOpen || pop == Com::ParenClose {
+			return Err(UnmatchedParen);
+		}
+		postfix.push(pop);
+	}
+
+	Ok(postfix)
 }
 
-pub fn execute_commands(coms: &[Command]) -> Option<f64> {
+pub fn execute_commands_with_vm(coms: &[Command], vm: &mut VM) -> Result<(), ParseError> {
+	for com in coms.iter() {
+		try!(com.execute(vm));
+	}
+	Ok(())
+}
+
+pub fn execute_commands(coms: &[Command]) -> Result<f64, ParseError> {
 	let mut vm = VM::new();
-	execute_commands_with_vm(coms, &mut vm);
+	try!(execute_commands_with_vm(coms, &mut vm));
 	if vm.stack_size() == 0 {
-		None
+		Err(StackExhausted)
 	} else {
-		Some(vm.pop())
+		Ok(vm.pop())
 	}
 }
 
@@ -243,14 +332,14 @@ pub fn commands_to_string(coms: &[Command]) -> String {
 	for com in coms.iter() {
 		match com {
 			&Com::Var(ref var) => { s.push(*var); s.push(' ') },
-			&Com::Int(ref i) => { s.push_str(&format!("{}", i)); s.push(' ');},
-			&Com::Add => { s.push(CHAR_ADD); s.push(' ');},
-			&Com::Sub => { s.push(CHAR_SUB); s.push(' ');},
-			&Com::Mul => { s.push(CHAR_MUL); s.push(' ');},
-			&Com::Div => { s.push(CHAR_DIV); s.push(' ');},
-			&Com::Pow => s.push('^'),
-			&Com::Func(ref func) => s.push_str(&format!("{}", *func)),
-			&Com::Root => s.push_str("root"),
+			&Com::Int(ref i) => { let _ = write!(s, "{} ", i); },
+			&Com::Add => { s.push(CHAR_ADD); s.push(' '); },
+			&Com::Sub => { s.push(CHAR_SUB); s.push(' '); },
+			&Com::Mul => { s.push(CHAR_MUL); s.push(' '); },
+			&Com::Div => { s.push(CHAR_DIV); s.push(' '); },
+			&Com::Pow => s.push_str("^ "),
+			&Com::Func(ref func) => s.push_str(&format!("{} ", *func)),
+			&Com::Root => s.push_str("root "),
 			&Com::Comma => s.push_str(", "),
 			&Com::ParenOpen => s.push('('),
 			&Com::ParenClose => {
@@ -258,7 +347,7 @@ pub fn commands_to_string(coms: &[Command]) -> String {
 					s.pop();
 				}
 				s.push(')');
-			},
+			}
 		}
 	}
 	s.trim();
@@ -279,7 +368,7 @@ fn commands_test() {
 #[allow(dead_code)]
 fn test_command(coms: &[Command], expected_res: Option<f64>) {
 	const ACCEPTABLE_ERROR: f64 = ::std::f64::EPSILON * 8.0;
-	let res = execute_commands(coms);
+	let res = execute_commands(coms).ok();
 	println!("{} == {:?}? (={:?})", commands_to_string(coms), expected_res, res);
 	match (res, expected_res) {
 		(None, None) => {},

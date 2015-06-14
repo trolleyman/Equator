@@ -3,7 +3,7 @@ use std::fmt::Error;
 
 use self::FuncType::*;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum FuncType {
 	Sqrt,
 	Sin,

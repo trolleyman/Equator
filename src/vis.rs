@@ -3,29 +3,8 @@ use std::rc::Weak;
 use std::cell::RefCell;
 
 use self::VToken::*;
-use self::ParseErrorType::*;
 
 use func::FuncType;
-
-#[derive(Debug)]
-pub struct ParseError {
-	err: ParseErrorType,
-	pos: usize
-}
-impl ParseError {
-	pub fn new(err: ParseErrorType, pos: usize) -> ParseError {
-		ParseError{err:err, pos:pos}
-	}
-	pub fn at_pos(pos: usize) -> ParseError {
-		ParseError::new(GeneralError, pos)
-	}
-}
-
-#[derive(Clone, Debug)]
-pub enum ParseErrorType {
-	GeneralError,
-	OverflowError
-}
 
 #[derive(Clone, Debug)]
 pub enum VToken {
