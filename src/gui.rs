@@ -1,7 +1,7 @@
 use gtk::traits::*;
 use gtk::signal::Inhibit;
 use gtk::widgets::*;
-use gtk::Orientation;
+use gtk::{Orientation, ReliefStyle};
 
 use gdk::{self};
 
@@ -12,8 +12,21 @@ use render::render;
 use render::Extent;
 use com::*;
 
-const MAX_BUTTON_X: usize = 5;
-const MAX_BUTTON_Y: usize = 3;
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub enum ButtonID {
+	Null,
+	Pow,
+	Square,
+	Sin,
+	Cos,
+	Tan,
+	Arsin,
+	Arcos,
+	Artan,
+	Sqrt,
+	Cbrt,
+	Var(char),
+}
 
 pub fn init_gui() {
 	assert_eq!(::std::mem::size_of::<Extent>(), ::std::mem::size_of::<(f64,f64,f64,f64)>());
@@ -23,25 +36,25 @@ pub fn init_gui() {
 	
 	// Get controls
 	let main_grid = Grid::new().unwrap();    // This is the grid that holds all of the controls,
-	main_grid.set_row_spacing(8);      // the buttons on the bottom and the drawing area on the top
-	main_grid.set_column_spacing(8);
-	main_grid.insert_row(0);
-	main_grid.insert_column(0);
-	main_grid.insert_column(1);
+	main_grid.set_row_spacing(5);            // the buttons on the bottom and the drawing area on the top
 	main_grid.set_vexpand(true);
 	main_grid.set_hexpand(true);
 	
-	let sep = Separator::new(Orientation::Horizontal).unwrap();
-	
-	let da = DrawingArea::new().unwrap();    // This is the main drawing area that the current equation is
-	da.set_vexpand(true);                    // drawn to. Has a variable size.
-	da.set_hexpand(true);
-	//da.set_size_request(500, 500);
-	da.connect_draw(|w: Widget, c: Context| {
-		render(&w, &c);
-		
-		Inhibit(false)
-	});
+	let da_frame = Frame::new(None).unwrap();
+	{
+		let da = DrawingArea::new().unwrap();    // This is the main drawing area that the current equation is
+		da.set_vexpand(true);                    // drawn to. Has a variable size.
+		da.set_hexpand(true);
+		//da.set_size_request(500, 500);
+		da.connect_draw(|w: Widget, c: Context| {
+			render(&w, &c);
+			
+			Inhibit(false)
+		});
+		da.set_can_focus(true);
+		da.grab_focus();
+		da_frame.add(&da);
+	}
 	
 	let button_grid = get_button_grid();     // This is the 'keypad'
 	
@@ -60,11 +73,11 @@ pub fn init_gui() {
 	});
 	
 	// Add
-	main_grid.attach(&da         , 0, 0, 1, 1);
-	main_grid.attach(&sep        , 0, 1, 1, 1);
-	main_grid.attach(&button_grid, 0, 2, 1, 1);
+	main_grid.attach(&da_frame   , 0, 0, 1, 1);
+	main_grid.attach(&button_grid, 0, 1, 1, 1);
 	
 	win.add(&main_grid);
+	//da_frame.grab_focus();
 	
 	// Show
 	win.show_all();
@@ -83,70 +96,162 @@ pub fn dirty_expression() {
 	}
 }
 
+pub fn dirty_gui() {
+	::get_window().queue_draw();
+}
+
 fn get_button_grid() -> Grid {
 	// Get grid & size it
 	let grid = Grid::new().unwrap();
 	grid.set_row_spacing(3);
 	grid.set_column_spacing(3);
-	for i in 0..MAX_BUTTON_X {
+	for i in 0..5 {
 		grid.insert_column(i as i32);
 	}
-	for i in 0..MAX_BUTTON_Y {
+	for i in 0..7 {
 		grid.insert_row(i as i32);
 	}
 	
+	// Insert the radians/degrees selector
+	let frame = Frame::new(None).unwrap();
+	{
+		let rb_radians = RadioButton::new_with_label("Radians").unwrap();
+		rb_radians.set_focus_on_click(false); rb_radians.set_relief(ReliefStyle::None);
+		let rb_degrees = RadioButton::new_with_label("Degrees").unwrap(); rb_degrees.join(&rb_radians);
+		rb_degrees.set_focus_on_click(false); rb_degrees.set_relief(ReliefStyle::None);
+		let rb_gradians = RadioButton::new_with_label("Grads").unwrap(); rb_gradians.join(&rb_radians);
+		rb_gradians.set_focus_on_click(false); rb_gradians.set_relief(ReliefStyle::None);
+		let button_box = ButtonBox::new(Orientation::Vertical).unwrap(); //68, 23
+		button_box.add(&rb_radians);
+		button_box.add(&rb_degrees);
+		button_box.add(&rb_gradians);
+		
+		frame.add(&button_box);
+	}
+	grid.attach(&frame, 0, 0, 1, 2);
+	
+	// Setup the SHIFT + CTRL buttons.
+	{
+		let shift_btn = CheckButton::new_with_label("SHIFT").unwrap();
+		shift_btn.set_mode(false); shift_btn.set_focus_on_click(false);
+		let ctrl_btn = CheckButton::new_with_label("CTRL").unwrap();
+		ctrl_btn.set_mode(false); shift_btn.set_focus_on_click(false);
+		let ctrl_btn_clone = ctrl_btn.clone();
+		shift_btn.connect_button_press_event(move |widg, _| {
+			// Toggle current button
+			let cb = CheckButton::wrap_widget(widg.unwrap_widget());
+			cb.set_active(!cb.get_active());
+			
+			// If the other is on, turn it off
+			if ctrl_btn_clone.get_active() {
+				ctrl_btn_clone.set_active(false);
+			}
+			
+			// Set gui state
+			if cb.get_active() {
+				set_gui_state(GuiState::Shift);
+			} else {
+				set_gui_state(GuiState::Normal);
+			}
+			dirty_gui();
+			
+			Inhibit(true)
+		});
+		
+		let shift_btn_clone = shift_btn.clone();
+		ctrl_btn.connect_button_press_event(move |widg, _| {
+			// Toggle current button
+			let cb = CheckButton::wrap_widget(widg.unwrap_widget());
+			cb.set_active(!cb.get_active());
+			
+			// If the other is on, turn it off
+			if shift_btn_clone.get_active() {
+				shift_btn_clone.set_active(false);
+			}
+			
+			// Set gui state
+			if cb.get_active() {
+				set_gui_state(GuiState::Ctrl);
+			} else {
+				set_gui_state(GuiState::Normal);
+			}
+			dirty_gui();
+			
+			Inhibit(true)
+		});
+		grid.attach(&shift_btn, 1, 0, 1, 1);
+		grid.attach(&ctrl_btn, 1, 1, 1, 1);
+	}
+	
 	// Setup a 2D vector of buttons
-	let mut buttons: Vec<Vec<Button>> = vec![];
-	buttons.reserve(MAX_BUTTON_Y as usize);
+	const NUM_BUTTONS: usize = 9;
+	let mut buttons: Vec<Button> = Vec::new();
+	buttons.reserve(NUM_BUTTONS as usize);
 	
 	// Set all the buttons to a default button
-	for y in 0..MAX_BUTTON_Y {
-		buttons.push(vec![]);
-		buttons[y].reserve(MAX_BUTTON_X as usize);
-		for _ in 0..MAX_BUTTON_X {
-			let default_button = Button::new().unwrap();
-			default_button.set_size_request(75, 23);
-			default_button.set_hexpand(true);
-			default_button.set_can_focus(false);
-			buttons[y].push(default_button);
-		}
+	for _ in 0..NUM_BUTTONS {
+		let default_button = Button::new().unwrap();
+		default_button.set_size_request(75, -1); //23
+		default_button.set_hexpand(true);
+		default_button.set_focus_on_click(false);
+		buttons.push(default_button);
 	}
 	
-	// Connect each individual button
-	buttons[0][0].set_label("xⁿ");
-	buttons[0][1].set_label("x²");
+	// Connect each individual button && atttch
+	make_and_attach_button(("Normal", "Shift", "Ctrl"), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 4, 2);
 	
-	buttons[1][0].set_label("sin(x)");
-	buttons[1][1].set_label("cos(x)");
-	buttons[1][2].set_label("tan(x)");
-	buttons[1][3].set_label("√x");
+	make_and_attach_button(("π", "φ", "e"), (ButtonID::Var('π'), ButtonID::Var('φ'), ButtonID::Var('e')), &grid, 0, 2);
+	make_and_attach_button(("x²", "xⁿ", ""), (ButtonID::Square, ButtonID::Pow, ButtonID::Null), &grid, 1, 2);
 	
-	buttons[2][0].set_label("∛x");
+	make_and_attach_button(("sin(x)", "sin⁻¹(x)", "x"), (ButtonID::Sin, ButtonID::Arsin, ButtonID::Var('x')), &grid, 3, 0);
+	make_and_attach_button(("cos(x)", "cos⁻¹(x)", "y"), (ButtonID::Cos, ButtonID::Arcos, ButtonID::Var('y')), &grid, 4, 0);
+	make_and_attach_button(("tan(x)", "tan⁻¹(x)", "z"), (ButtonID::Tan, ButtonID::Artan, ButtonID::Var('z')), &grid, 5, 0);
 	
-	buttons[0][0].connect_clicked(|_| { ::get_editor().handle_button_click(0, 0); });
-	buttons[0][1].connect_clicked(|_| { ::get_editor().handle_button_click(1, 0); });
-	buttons[0][2].connect_clicked(|_| { ::get_editor().handle_button_click(2, 0); });
-	buttons[0][3].connect_clicked(|_| { ::get_editor().handle_button_click(3, 0); });
-	buttons[0][4].connect_clicked(|_| { ::get_editor().handle_button_click(4, 0); });
+	make_and_attach_button(("√x", "√x", "√x"), (ButtonID::Sqrt, ButtonID::Sqrt, ButtonID::Sqrt), &grid, 0, 3);
 	
-	buttons[1][0].connect_clicked(|_| { ::get_editor().handle_button_click(0, 1); });
-	buttons[1][1].connect_clicked(|_| { ::get_editor().handle_button_click(1, 1); });
-	buttons[1][2].connect_clicked(|_| { ::get_editor().handle_button_click(2, 1); });
-	buttons[1][3].connect_clicked(|_| { ::get_editor().handle_button_click(3, 1); });
-	buttons[1][4].connect_clicked(|_| { ::get_editor().handle_button_click(4, 1); });
-	
-	buttons[2][0].connect_clicked(|_| { ::get_editor().handle_button_click(0, 2); });
-	buttons[2][1].connect_clicked(|_| { ::get_editor().handle_button_click(1, 2); });
-	buttons[2][2].connect_clicked(|_| { ::get_editor().handle_button_click(2, 2); });
-	buttons[2][3].connect_clicked(|_| { ::get_editor().handle_button_click(3, 2); });
-	buttons[2][4].connect_clicked(|_| { ::get_editor().handle_button_click(4, 2); });
-	
-	// Attach them to the grid
-	for y in 0..MAX_BUTTON_Y {
-		for x in 0..MAX_BUTTON_X {
-			grid.attach(&buttons[y][x], x as i32, y as i32, 1, 1)
-		}
-	}
+	make_and_attach_button(("∛x", "∛x", "∛x"), (ButtonID::Cbrt, ButtonID::Cbrt, ButtonID::Cbrt), &grid, 1, 3);
 	
 	grid // Return
+}
+
+fn make_and_attach_button(labels: (&'static str, &'static str, &'static str), ids: (ButtonID, ButtonID, ButtonID), grid: &Grid, x: i32, y: i32) {
+	let but = Button::new().unwrap();
+	but.set_size_request(75, -1); //23
+	but.set_hexpand(true);
+	but.set_focus_on_click(false);
+	but.set_label(labels.0);
+	let ids_clone = ids.clone();
+	but.connect_clicked(move |_| {
+		match get_gui_state() {
+			GuiState::Normal => ::get_editor().handle_button_click(ids_clone.0.clone()),
+			GuiState::Shift  => ::get_editor().handle_button_click(ids_clone.1.clone()),
+			GuiState::Ctrl   => ::get_editor().handle_button_click(ids_clone.2.clone()),
+		};
+	});
+	
+	but.connect_draw(move |widg, _| {
+		let but = Button::wrap_widget(widg.unwrap_widget());
+		match get_gui_state() {
+			GuiState::Normal    => { if but.get_label() != Some(labels.0.to_string()) { but.set_label(labels.0); } },
+			GuiState::Shift     => { if but.get_label() != Some(labels.1.to_string()) { but.set_label(labels.1); } },
+			GuiState::Ctrl      => { if but.get_label() != Some(labels.2.to_string()) { but.set_label(labels.2); } },
+		};
+		Inhibit(false)
+	});
+	grid.attach(&but, x, y, 1, 1);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GuiState {
+	Normal,
+	Shift,
+	Ctrl
+}
+static mut gui_state: GuiState = GuiState::Normal;
+
+pub fn get_gui_state() -> GuiState {
+	unsafe { gui_state.clone() }
+}
+fn set_gui_state(state: GuiState) {
+	unsafe { gui_state = state; }
 }
