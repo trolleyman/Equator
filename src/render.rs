@@ -95,8 +95,8 @@ pub fn render(widg: &Widget, c: &Context) {
 	//println!("{:?}", extent);
 	let path = c.copy_path();
 	
-	//let (mut x, mut y) = align(&extent, alloc_w/2.0, alloc_h/2.0, Mid);
-	let (mut x, mut y) = align(&extent, 30.0, 30.0, BotRight);
+	let (mut x, mut y) = align(&extent, alloc_w/2.0, alloc_h/2.0, Mid);
+	//let (mut x, mut y) = align(&extent, 30.0, 30.0, BotRight);
 	x = x.floor();
 	y = y.floor();
 	c.translate(x, y);
@@ -169,9 +169,18 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 			unsafe { cursor_rect_pos = c.get_current_point(); cursor_rect_scale = get_scale(c); }
 		}
 		match &expr.borrow().tokens[i] {
-			&VToken::Char(ref chr) => {
+			&VToken::Digit(ref chr) | &VToken::Char(ref chr) => {
 				let (start_x, start_y) = c.get_current_point();
 				let s = char::to_string(&chr);
+				c.text_path(&s);
+				c.rel_move_to(1.0, 0.0);
+				let (end_x, _) = c.get_current_point();
+				let extent = Extent {x0:start_x, y0:start_y-get_ascent(c), x1:end_x, y1:start_y+get_descent(c)}; // Calculate char's extent
+				prev_extent = extent;
+			},
+			&VToken::Op(ref op) => {
+				let (start_x, start_y) = c.get_current_point();
+				let s = format!("{}", op);
 				c.text_path(&s);
 				c.rel_move_to(1.0, 0.0);
 				let (end_x, _) = c.get_current_point();

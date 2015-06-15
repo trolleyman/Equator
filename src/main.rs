@@ -19,6 +19,7 @@ pub mod gui;
 pub mod render;
 pub mod com;
 pub mod err;
+pub mod consts;
 
 static mut g_editor: *mut Editor = 0 as *mut Editor;
 static mut g_window: *mut Window = 0 as *mut Window;

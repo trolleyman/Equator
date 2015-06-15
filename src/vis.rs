@@ -1,14 +1,36 @@
 use	std::rc::Rc;
 use std::rc::Weak;
 use std::cell::RefCell;
+use std::fmt::{self, Display, Formatter};
 
 use self::VToken::*;
 
+use consts::*;
 use func::FuncType;
+
+#[derive(Clone, Debug)]
+pub enum OpType {
+	Add,
+	Sub,
+	Mul,
+	Div,
+}
+impl Display for OpType {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		match self {
+			&OpType::Add => write!(f, "{}", CHAR_ADD),
+			&OpType::Sub => write!(f, "{}", CHAR_SUB),
+			&OpType::Mul => write!(f, "{}", CHAR_MUL),
+			&OpType::Div => write!(f, "{}", CHAR_DIV),
+		}
+	}
+}
 
 #[derive(Clone, Debug)]
 pub enum VToken {
 	Char(char),
+	Digit(char),
+	Op(OpType),
 	Pow(VExprRef),
 	Root(VExprRef, VExprRef),
 	Func(FuncType, VExprRef)
@@ -18,14 +40,14 @@ impl VToken {
 		match self {
 			&Pow(ref ex) | &Func(_, ref ex) => box [ex.clone()],
 			&Root(ref ex1, ref ex2) => box [ex1.clone(), ex2.clone()],
-			&Char(_) => box []
+			&Op(_) | &Digit(_) | &Char(_) => box []
 		}
 	}
 	
 	pub fn has_inner_expr(&self) -> bool {
 		match self {
 			&Pow(_) | &Func(_, _) | &Root(_, _) => true,
-			&Char(_) => false
+			&Op(_) | &Digit(_) | &Char(_) => false
 		}
 	}
 }

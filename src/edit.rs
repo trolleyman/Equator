@@ -1,7 +1,10 @@
 use std::iter::RandomAccessIterator;
 
+use std::fmt::Write;
+
 use gdk::{key, EventKey, self};
 
+use consts::*;
 use gui;
 use vis::*;
 use func::*;
@@ -12,15 +15,6 @@ pub struct Editor {
 	pub pos: usize,
 }
 
-pub const CHAR_ADD: char = '+';
-pub const CHAR_SUB: char = '−';
-pub const CHAR_MUL: char = '×';
-pub const CHAR_DIV: char = '÷';
-pub const CHAR_BOX: char = '□';//'☐';
-pub const CHAR_HLBOX: char = '■';//'☐';
-
-unsafe impl Sync for Editor {}
-unsafe impl Send for Editor {}
 impl Editor {
 	pub fn new() -> Self {
 		let ex: VExprRef = VExpr::new_ref();
@@ -66,10 +60,12 @@ impl Editor {
 	}
 	
 	/// Returns true if the button press has been handled.
-	pub fn handle_button_click(&mut self, x:u32, y:u32) -> bool {
+	#[allow(unused_mut)]
+	pub fn handle_button_click(&mut self, id: gui::ButtonID) -> bool {
 		let mut unhandled = false;
-		match (y, x) {
-			(0, 0) => {
+		match id {
+			gui::ButtonID::Null => {}
+			gui::ButtonID::Pow => {
 				// Insert ^
 				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
 				let exp = VToken::Pow(inner_ref.clone());
@@ -80,7 +76,7 @@ impl Editor {
 				self.ex = inner_ref;
 				self.pos = 0;
 			},
-			(0, 1) => {
+			gui::ButtonID::Square => {
 				// ^2
 				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
 				inner_ref.borrow_mut().tokens.push(VToken::Char('2'));
@@ -91,7 +87,7 @@ impl Editor {
 				// Move cursor inside
 				self.pos += 1;
 			},
-			(1, 0) => {
+			gui::ButtonID::Sin => {
 				// sin
 				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
 				let func = VToken::Func(FuncType::Sin, inner_ref.clone());
@@ -102,7 +98,18 @@ impl Editor {
 				self.ex = inner_ref;
 				self.pos = 0;
 			},
-			(1, 1) => {
+			gui::ButtonID::Arsin => {
+				// arsin
+				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
+				let func = VToken::Func(FuncType::Arsin, inner_ref.clone());
+				
+				self.insert_token(func);
+				
+				// Move cursor inside
+				self.ex = inner_ref;
+				self.pos = 0;
+			},
+			gui::ButtonID::Cos => {
 				// cos
 				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
 				let func = VToken::Func(FuncType::Cos, inner_ref.clone());
@@ -113,7 +120,18 @@ impl Editor {
 				self.ex = inner_ref;
 				self.pos = 0;
 			},
-			(1, 2) => {
+			gui::ButtonID::Arcos => {
+				// arsin
+				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
+				let func = VToken::Func(FuncType::Arcos, inner_ref.clone());
+				
+				self.insert_token(func);
+				
+				// Move cursor inside
+				self.ex = inner_ref;
+				self.pos = 0;
+			},
+			gui::ButtonID::Tan => {
 				// tan
 				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
 				let func = VToken::Func(FuncType::Tan, inner_ref.clone());
@@ -124,7 +142,18 @@ impl Editor {
 				self.ex = inner_ref;
 				self.pos = 0;
 			},
-			(1, 3) => {
+			gui::ButtonID::Artan => {
+				// arsin
+				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
+				let func = VToken::Func(FuncType::Artan, inner_ref.clone());
+				
+				self.insert_token(func);
+				
+				// Move cursor inside
+				self.ex = inner_ref;
+				self.pos = 0;
+			},
+			gui::ButtonID::Sqrt => {
 				// Insert √
 				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
 				let func = VToken::Func(FuncType::Sqrt, inner_ref.clone());
@@ -135,7 +164,7 @@ impl Editor {
 				self.ex = inner_ref;
 				self.pos = 0;
 			},
-			(2, 0) => {
+			gui::ButtonID::Cbrt => {
 				// Produce cube root (∛)
 				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
 				let degree_ref = VExpr::with_parent(self.ex.clone()).to_ref();
@@ -148,17 +177,20 @@ impl Editor {
 				self.ex = inner_ref;
 				self.pos = 0;
 			},
-			_ => unhandled = true,
+			gui::ButtonID::Var(id) => {
+				self.insert_token(VToken::Char(id));
+				self.pos += 1;
+			}
 		}
 		
 		if unhandled {
-			println!("Button clicked @ {}, {} (unhandled)", x, y);
+			println!("button clicked: {:?} (unhandled)", id);
 		} else {
-			println!("Button clicked @ {}, {} (handled)", x, y);
+			println!("button clicked: {:?} (handled)", id);
 			gui::dirty_expression();
 		}
 		
-		return !unhandled;
+		return true;
 	}
 	
 	/// Inserts the text at `pos` in the expression `ex`.
@@ -175,37 +207,42 @@ impl Editor {
 	/// Returns true if the character has been inserted
 	pub fn insert_char(&mut self, c: char) -> bool {
 		match c {
-			'0' ... '9' | 'a' ... 'z' | 'A' ... 'Z' | '(' | ')' => {
-				self.ex.borrow_mut().tokens.insert(self.pos, VToken::Char(c));
+			'a' ... 'z' | 'A' ... 'Z' | '(' | ')' => {
+				self.insert_token(VToken::Char(c));
+				self.pos += 1;
+				true
+			},
+			_ if c.is_digit(10) => {
+				self.insert_token(VToken::Digit(c));
 				self.pos += 1;
 				true
 			},
 			'+' => {
-				self.ex.borrow_mut().tokens.insert(self.pos, VToken::Char(CHAR_ADD));
+				self.insert_token(VToken::Op(OpType::Add));
 				self.pos += 1;
 				true
 			},
 			'-' | CHAR_SUB => {
-				self.ex.borrow_mut().tokens.insert(self.pos, VToken::Char(CHAR_SUB));
+				self.insert_token(VToken::Op(OpType::Sub));
 				self.pos += 1;
 				true
 			},
 			'*' | CHAR_MUL => {
-				self.ex.borrow_mut().tokens.insert(self.pos, VToken::Char(CHAR_MUL));
+				self.insert_token(VToken::Op(OpType::Mul));
 				self.pos += 1;
 				true
 			},
 			'/' | CHAR_DIV => {
-				self.ex.borrow_mut().tokens.insert(self.pos, VToken::Char(CHAR_DIV));
+				self.insert_token(VToken::Op(OpType::Div));
 				self.pos += 1;
 				true
 			},
 			'^' => {
 				// Insert ^()
 				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
-				let exp = VToken::Pow(inner_ref.clone());
+				let pow = VToken::Pow(inner_ref.clone());
 				
-				self.ex.borrow_mut().tokens.insert(self.pos, exp);
+				self.insert_token(pow);
 				
 				// Move cursor inside
 				self.ex = inner_ref;
@@ -407,8 +444,11 @@ impl Editor {
 			}
 			
 			match ex_ref.borrow().tokens[i].clone() {
-				VToken::Char(c) => {
+				VToken::Digit(c) | VToken::Char(c) => {
 					buffer.push(c);
+				},
+				VToken::Op(op) => {
+					let _ = write!(buffer, "{}", op);
 				},
 				VToken::Pow(inner_ex_ref) => {
 					// Recursive stuff yay!
