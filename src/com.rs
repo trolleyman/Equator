@@ -119,12 +119,20 @@ impl VM {
 		self.stack.pop()
 	}
 	#[inline(always)]
+	pub fn peek(&mut self) -> Option<f64> {
+		self.stack.get(0).map(|f| {*f})
+	}
+	#[inline(always)]
 	pub fn set_var(&mut self, id: char, v: f64) {
 		self.vars.insert(id, v);
 	}
 	#[inline(always)]
 	pub fn get_var(&mut self, id: char) -> f64 {
 		*self.vars.get(&id).unwrap_or(&0.0)
+	}
+	#[inline(always)]
+	pub fn clear_stack(&mut self) {
+		self.stack.clear();
 	}
 	#[inline(always)]
 	pub fn stack_size(&self) -> usize {
@@ -137,7 +145,7 @@ impl VM {
 		} else if self.stack_size() > 1 {
 			Err(SyntaxError)
 		} else {
-			Ok(self.pop().unwrap())
+			Ok(self.stack[0])
 		}
 	}
 	pub fn execute_all(&mut self, coms: &[Command]) -> Result<(), ParseError> {
@@ -315,6 +323,26 @@ fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseErro
 		// Flush buffer
 		infix.push(try!(parse_num_buf(&num_buf)));
 		num_buf.clear();
+	}
+	
+	if debug_print {
+		println!("({: ^25}, {: ^25})", "first", "second");
+		println!("(-------------------------,--------------------------)");
+	}
+	
+	let mut i = 1;
+	while i < infix.len() {
+		let com_pair = (infix.get(i - 1).unwrap().clone(), infix.get(i).unwrap().clone());
+		if debug_print {
+			println!("({: <25}, {: <25}) i = {}", format!("{:?}", com_pair.0).as_str(), format!("{:?}", com_pair.1).as_str(), i);
+		}
+		i += match com_pair {
+			(Com::Var(_), Com::Var(_)) | (Com::Var(_), Com::Int(_)) | (Com::Int(_), Com::Var(_))
+				| (Com::Float(_), Com::Var(_)) | (Com::Var(_), Com::Float(_)) => { infix.insert(i, Com::Mul); 1 },
+			_ => { 0 }
+		};
+		
+		i += 1;
 	}
 	
 	// Check for errors
