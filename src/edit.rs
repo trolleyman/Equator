@@ -6,6 +6,7 @@ use gdk::{key, EventKey, self};
 
 use consts::*;
 use gui;
+use com;
 use vis::*;
 use func::*;
 
@@ -37,6 +38,21 @@ impl Editor {
 			},
 			key::Up | key::Down => {
 				// Not used for anything currently, handled to stop changing focus of buttons.
+			},
+			key::F1 => unsafe {
+				com::debug_print_stage1 = !com::debug_print_stage1;
+				if com::debug_print_stage1 { println!("command debug printing stage 1 on."); 
+				} else {                     println!("command debug printing stage 1 off."); }
+			},
+			key::F2 => unsafe {
+				com::debug_print_stage2 = !com::debug_print_stage2;
+				if com::debug_print_stage2 { println!("command debug printing stage 2 on."); 
+				} else {                     println!("command debug printing stage 2 off."); }
+			},
+			key::F3 => unsafe {
+				com::debug_print_stage3 = !com::debug_print_stage3;
+				if com::debug_print_stage3 { println!("command debug printing stage 3 on."); 
+				} else {                     println!("command debug printing stage 3 off."); }
 			},
 			key::Delete => {self.delete();},
 			key::BackSpace => {self.backspace();},
@@ -79,7 +95,7 @@ impl Editor {
 			gui::ButtonID::Square => {
 				// ^2
 				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
-				inner_ref.borrow_mut().tokens.push(VToken::Char('2'));
+				inner_ref.borrow_mut().tokens.push(VToken::Digit('2'));
 				let exp = VToken::Pow(inner_ref.clone());
 				
 				self.insert_token(exp);
@@ -168,7 +184,7 @@ impl Editor {
 				// Produce cube root (∛)
 				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
 				let degree_ref = VExpr::with_parent(self.ex.clone()).to_ref();
-				degree_ref.borrow_mut().tokens.push(VToken::Char('3'));
+				degree_ref.borrow_mut().tokens.push(VToken::Digit('3'));
 				let root = VToken::Root(degree_ref.clone(), inner_ref.clone());
 				
 				self.insert_token(root);
@@ -207,7 +223,7 @@ impl Editor {
 	/// Returns true if the character has been inserted
 	pub fn insert_char(&mut self, c: char) -> bool {
 		match c {
-			'a' ... 'z' | 'A' ... 'Z' | '(' | ')' => {
+			'a' ... 'z' | 'A' ... 'Z' | '(' | ')' | '.' => {
 				self.insert_token(VToken::Char(c));
 				self.pos += 1;
 				true
@@ -302,11 +318,11 @@ impl Editor {
 				}
 			}
 			if found <= 0 || found as usize >= exprs.len() {
-				if self.pos != 0 {
-					//self.pos -= 1;
-				} else {
-					return false;
-				}
+				//if self.pos != 0 {
+				//	//self.pos -= 1;
+				//} else {
+				//	return false;
+				//}
 			} else {
 				self.ex = exprs[found as usize - 1].clone();
 				self.pos = self.ex.borrow().tokens.len();

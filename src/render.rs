@@ -207,6 +207,7 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				x = x.floor();
 				y = y.floor();
 				exp_extents = exp_extents.translate(x, y);
+				exp_extents.x1 += 2.0;
 				
 				unsafe {
 					if !cursor_rect_set_before && cursor_rect_set_after {
@@ -224,7 +225,7 @@ fn path_expr(c: &Context, expr: VExprRef, cursor_expr: VExprRef, cursor_pos: usi
 				c.identity_matrix();
 				c.restore();
 				set_scale(c, orig_scale);
-				c.move_to(orig_x + exp_extents.w() + 2.0, orig_y); // Moves the current point onwards the width of the exp_path.
+				c.move_to(orig_x + exp_extents.w(), orig_y); // Moves the current point onwards the width of the exp_path.
 				prev_extent = exp_extents;
 			},
 			&VToken::Func(FuncType::Sqrt, ref inner_expr) => {

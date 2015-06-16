@@ -28,6 +28,23 @@ pub enum ButtonID {
 	Var(char),
 }
 
+pub fn dirty_expression() {
+	::get_window().queue_draw();
+	::get_editor().print();
+	let res = match expr_to_commands(::get_editor().root_ex.clone()) {
+		Ok(commands) => VM::new().get_result(&commands),
+		Err(e) => { println!("error: {}", e); return; },
+	};
+	match res {
+		Ok(v)  => println!("result : {}", v),
+		Err(e) => println!("result : error: {}", e),
+	}
+}
+
+pub fn dirty_gui() {
+	::get_window().queue_draw();
+}
+
 pub fn init_gui() {
 	assert_eq!(::std::mem::size_of::<Extent>(), ::std::mem::size_of::<(f64,f64,f64,f64)>());
 	
@@ -83,23 +100,6 @@ pub fn init_gui() {
 	win.show_all();
 }
 
-pub fn dirty_expression() {
-	::get_window().queue_draw();
-	::get_editor().print();
-	let res = match expr_to_commands(::get_editor().root_ex.clone()) {
-		Ok(commands) => execute_commands(&commands),
-		Err(e) => { println!("error: {}", e); return; },
-	};
-	match res {
-		Ok(v)  => println!("result : {}", v),
-		Err(e) => println!("result : error: {}", e),
-	}
-}
-
-pub fn dirty_gui() {
-	::get_window().queue_draw();
-}
-
 fn get_button_grid() -> Grid {
 	// Get grid & size it
 	let grid = Grid::new().unwrap();
@@ -128,7 +128,7 @@ fn get_button_grid() -> Grid {
 		
 		frame.add(&button_box);
 	}
-	grid.attach(&frame, 0, 0, 1, 2);
+	grid.attach(&frame, 0, 0, 1, 3);
 	
 	// Setup the SHIFT + CTRL buttons.
 	{
@@ -200,12 +200,12 @@ fn get_button_grid() -> Grid {
 	// Connect each individual button && atttch
 	make_and_attach_button(("Normal", "Shift", "Ctrl"), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 4, 2);
 	
-	make_and_attach_button(("π", "φ", "e"), (ButtonID::Var('π'), ButtonID::Var('φ'), ButtonID::Var('e')), &grid, 0, 2);
-	make_and_attach_button(("x²", "xⁿ", ""), (ButtonID::Square, ButtonID::Pow, ButtonID::Null), &grid, 1, 2);
+	make_and_attach_button(("π", "φ", "e"), (ButtonID::Var('π'), ButtonID::Var('φ'), ButtonID::Var('e')), &grid, 1, 2);
+	make_and_attach_button(("x²", "xⁿ", ""), (ButtonID::Square, ButtonID::Pow, ButtonID::Null), &grid, 2, 2);
 	
-	make_and_attach_button(("sin(x)", "sin⁻¹(x)", "x"), (ButtonID::Sin, ButtonID::Arsin, ButtonID::Var('x')), &grid, 3, 0);
-	make_and_attach_button(("cos(x)", "cos⁻¹(x)", "y"), (ButtonID::Cos, ButtonID::Arcos, ButtonID::Var('y')), &grid, 4, 0);
-	make_and_attach_button(("tan(x)", "tan⁻¹(x)", "z"), (ButtonID::Tan, ButtonID::Artan, ButtonID::Var('z')), &grid, 5, 0);
+	make_and_attach_button(("sin", "sin⁻¹", "x"), (ButtonID::Sin, ButtonID::Arsin, ButtonID::Var('x')), &grid, 3, 0);
+	make_and_attach_button(("cos", "cos⁻¹", "y"), (ButtonID::Cos, ButtonID::Arcos, ButtonID::Var('y')), &grid, 4, 0);
+	make_and_attach_button(("tan", "tan⁻¹", "z"), (ButtonID::Tan, ButtonID::Artan, ButtonID::Var('z')), &grid, 5, 0);
 	
 	make_and_attach_button(("√x", "√x", "√x"), (ButtonID::Sqrt, ButtonID::Sqrt, ButtonID::Sqrt), &grid, 0, 3);
 	
@@ -232,13 +232,23 @@ fn make_and_attach_button(labels: (&'static str, &'static str, &'static str), id
 	but.connect_draw(move |widg, _| {
 		let but = Button::wrap_widget(widg.unwrap_widget());
 		match get_gui_state() {
-			GuiState::Normal    => { if but.get_label() != Some(labels.0.to_string()) { but.set_label(labels.0); } },
-			GuiState::Shift     => { if but.get_label() != Some(labels.1.to_string()) { but.set_label(labels.1); } },
-			GuiState::Ctrl      => { if but.get_label() != Some(labels.2.to_string()) { but.set_label(labels.2); } },
+			GuiState::Normal    => { change_button_attrib(&but, labels.0, ids.0 != ButtonID::Null); },
+			GuiState::Shift     => { change_button_attrib(&but, labels.1, ids.1 != ButtonID::Null); },
+			GuiState::Ctrl      => { change_button_attrib(&but, labels.2, ids.2 != ButtonID::Null); },
 		};
 		Inhibit(false)
 	});
 	grid.attach(&but, x, y, 1, 1);
+}
+
+// Only changes attributes passed to it when the current attributes differ
+fn change_button_attrib(but: &Button, label: &'static str, enabled: bool) {
+	if but.get_label() != Some(label.to_string()) {
+		but.set_label(label);
+	}
+	if but.get_sensitive() != enabled {
+		but.set_sensitive(enabled);
+	}
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

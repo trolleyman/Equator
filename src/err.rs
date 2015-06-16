@@ -1,25 +1,30 @@
 use std::fmt::{self, Display, Formatter};
 
 pub use self::ParseError::*;
+use com;
 
 pub enum ParseError {
 	GeneralError,
+	FloatParseError,
 	OverflowError,
 	SyntaxError,
 	StackExhausted,
-	IllegalChar,
+	IllegalChar(char, usize),
+	IllegalCommand(com::Command, usize),
 	UnmatchedParen,
 }
 
 impl Display for ParseError {
 	fn fmt(&self, f: &mut Formatter) -> Result<(), fmt::Error> {
 		match self {
-			&GeneralError   => f.write_str("general error"),
-			&OverflowError  => f.write_str("integer overflow"),
-			&SyntaxError    => f.write_str("syntax error"),
-			&StackExhausted => f.write_str("stack exhausted"),
-			&IllegalChar    => f.write_str("illegal character"),
-			&UnmatchedParen => f.write_str("unmatched parenthesis encountered"),
+			&GeneralError      => write!(f, "general error"),
+			&FloatParseError   => write!(f, "float parsing error"),
+			&OverflowError     => write!(f, "integer overflow"),
+			&SyntaxError       => write!(f, "syntax error"),
+			&StackExhausted    => write!(f, "stack exhausted"),
+			&IllegalChar(ref c, ref pos) => write!(f, "illegal character ({:?} at {})", c, pos),
+			&IllegalCommand(ref c, ref pos) => write!(f, "illegal command ({:?} at {})", c, pos),
+			&UnmatchedParen    => write!(f, "unmatched parenthesis encountered"),
 		}
 	}
 }
