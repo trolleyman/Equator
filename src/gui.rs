@@ -2,8 +2,9 @@ use gtk::traits::*;
 use gtk::signal::Inhibit;
 use gtk::widgets::*;
 use gtk::{Orientation, ReliefStyle};
+use gtk_sys;
 
-use gdk::{self};
+use gdk::{key, self};
 
 use cairo::Context;
 
@@ -27,6 +28,9 @@ pub enum ButtonID {
 	Cbrt,
 	Var(char),
 }
+
+static mut shift_btn_ptr: *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget;
+static mut ctrl_btn_ptr : *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget;
 
 pub fn dirty_expression() {
 	::get_window().queue_draw();
@@ -78,7 +82,7 @@ pub fn init_gui() {
 	// Connect everything
 	// Need pointer to get around lifetime issue due to the fact that gtk doesn't have a lifetime.
 	// Should be fine since editor exists for all of main(), and so does gtk.
-	win.connect_key_press_event(|_, event| {
+	win.connect_key_press_event(move |_, event| {
 		let edit: &mut Editor = ::get_editor();
 		let handled = edit.handle_keypress(event);
 		
@@ -86,7 +90,22 @@ pub fn init_gui() {
 		let name = gdk::keyval_name(event.keyval).unwrap_or(" ".to_string());
 		println!("keypress: {0:#08x} : {1} : {2}", event.keyval, c, name);
 		
+		match event.keyval {
+			key::Shift_L   | key::Shift_R   => set_gui_state(GuiState::Shift),
+			key::Control_L | key::Control_R => set_gui_state(GuiState::Ctrl),
+			_ => {}
+		}
+		
 		Inhibit(handled)
+	});
+	win.connect_key_release_event(move |_, event| {
+		match event.keyval {
+			key::Shift_L   | key::Shift_R   => set_gui_state(GuiState::Normal),
+			key::Control_L | key::Control_R => set_gui_state(GuiState::Normal),
+			_ => {}
+		}
+		
+		Inhibit(false)
 	});
 	
 	// Add
@@ -131,49 +150,32 @@ fn get_button_grid() -> Grid {
 	grid.attach(&frame, 0, 0, 1, 3);
 	
 	// Setup the SHIFT + CTRL buttons.
-	{
+	unsafe {
 		let shift_btn = CheckButton::new_with_label("SHIFT").unwrap();
+		let ctrl_btn  = CheckButton::new_with_label("CTRL" ).unwrap();
+		shift_btn_ptr = shift_btn.unwrap_widget();
+		ctrl_btn_ptr  = ctrl_btn .unwrap_widget();
 		shift_btn.set_mode(false); shift_btn.set_focus_on_click(false);
-		let ctrl_btn = CheckButton::new_with_label("CTRL").unwrap();
 		ctrl_btn.set_mode(false); shift_btn.set_focus_on_click(false);
-		let ctrl_btn_clone = ctrl_btn.clone();
-		shift_btn.connect_button_press_event(move |widg, _| {
-			// Toggle current button
-			let cb = CheckButton::wrap_widget(widg.unwrap_widget());
-			cb.set_active(!cb.get_active());
-			
+		
+		shift_btn.connect_button_press_event(move |_, _| {
 			// If the other is on, turn it off
-			if ctrl_btn_clone.get_active() {
-				ctrl_btn_clone.set_active(false);
-			}
-			
-			// Set gui state
-			if cb.get_active() {
-				set_gui_state(GuiState::Shift);
-			} else {
+			if get_gui_state() == GuiState::Shift {
 				set_gui_state(GuiState::Normal);
+			} else {
+				set_gui_state(GuiState::Shift);
 			}
 			dirty_gui();
 			
 			Inhibit(true)
 		});
 		
-		let shift_btn_clone = shift_btn.clone();
-		ctrl_btn.connect_button_press_event(move |widg, _| {
-			// Toggle current button
-			let cb = CheckButton::wrap_widget(widg.unwrap_widget());
-			cb.set_active(!cb.get_active());
-			
+		ctrl_btn.connect_button_press_event(move |_, _| {
 			// If the other is on, turn it off
-			if shift_btn_clone.get_active() {
-				shift_btn_clone.set_active(false);
-			}
-			
-			// Set gui state
-			if cb.get_active() {
-				set_gui_state(GuiState::Ctrl);
-			} else {
+			if get_gui_state() == GuiState::Ctrl {
 				set_gui_state(GuiState::Normal);
+			} else {
+				set_gui_state(GuiState::Ctrl);
 			}
 			dirty_gui();
 			
@@ -263,5 +265,15 @@ pub fn get_gui_state() -> GuiState {
 	unsafe { gui_state.clone() }
 }
 fn set_gui_state(state: GuiState) {
-	unsafe { gui_state = state; }
+	unsafe {
+		let shift_btn = CheckButton::wrap_widget(shift_btn_ptr);
+		let ctrl_btn  = CheckButton::wrap_widget(ctrl_btn_ptr );
+		gui_state = state;
+		match state {
+			GuiState::Normal => { shift_btn.set_active(false); ctrl_btn.set_active(false); },
+			GuiState::Shift  => { shift_btn.set_active(true ); ctrl_btn.set_active(false); },
+			GuiState::Ctrl   => { shift_btn.set_active(false); ctrl_btn.set_active(true ); },
+		}
+		dirty_gui();
+	}
 }

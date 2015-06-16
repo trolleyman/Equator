@@ -2,7 +2,6 @@
 Simple equation viewer in Rust.
 
 ## Todo:
-- [ ] Get SHIFT + CTRL buttons to activate on Shift + Ctrl keypresses.
 - [ ] Add fractions
 - [ ] Add more functions -- ln, log, hyperbolics, |x|, factorials
 - [ ] Add constants -- e, pi
@@ -29,16 +28,6 @@ The vector of selection boxes will contain references to the expression and curs
 
 As this is done during the rendering stage, there will be no mismatch in the shown expression and the selection box vector.
 
-### More accurate number system
-
-```rust
-pub enum Number {
-	Float(f64), // Normal
-	Scientific(i64, i8), // Num = i64 * 10^i8. i64 max will be 999,999,999,999,999,999. (i64 max is 9223372036854775807).
-}
-```
-
 ## To fix:
-This bug
 
 ![bug](http://i.imgur.com/SQbD2wu.png)
