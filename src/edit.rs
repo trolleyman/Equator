@@ -14,6 +14,7 @@ pub struct Editor {
 	pub root_ex: VExprRef,
 	pub ex: VExprRef,
 	pub pos: usize,
+	pub vm: com::VM,
 }
 
 impl Editor {
@@ -22,7 +23,7 @@ impl Editor {
 		Editor::with_expression(ex, 0)
 	}
 	pub fn with_expression(ex: VExprRef, pos: usize) -> Self {
-		Editor{ root_ex:ex.clone(), ex:ex, pos:pos }
+		Editor{ root_ex:ex.clone(), ex:ex, pos:pos, vm:com::VM::new()}
 	}
 	
 	/// Handles the keypress given, inserting the key pressed at the cursor's position.
@@ -104,81 +105,25 @@ impl Editor {
 				self.pos += 1;
 			},
 			gui::ButtonID::Sin => {
-				// sin
-				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
-				let func = VToken::Func(FuncType::Sin, inner_ref.clone());
-				
-				self.insert_token(func);
-				
-				// Move cursor inside
-				self.ex = inner_ref;
-				self.pos = 0;
+				self.insert_func(FuncType::Sin);
 			},
 			gui::ButtonID::Arsin => {
-				// arsin
-				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
-				let func = VToken::Func(FuncType::Arsin, inner_ref.clone());
-				
-				self.insert_token(func);
-				
-				// Move cursor inside
-				self.ex = inner_ref;
-				self.pos = 0;
+				self.insert_func(FuncType::Arsin);
 			},
 			gui::ButtonID::Cos => {
-				// cos
-				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
-				let func = VToken::Func(FuncType::Cos, inner_ref.clone());
-				
-				self.insert_token(func);
-				
-				// Move cursor inside
-				self.ex = inner_ref;
-				self.pos = 0;
+				self.insert_func(FuncType::Cos);
 			},
 			gui::ButtonID::Arcos => {
-				// arsin
-				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
-				let func = VToken::Func(FuncType::Arcos, inner_ref.clone());
-				
-				self.insert_token(func);
-				
-				// Move cursor inside
-				self.ex = inner_ref;
-				self.pos = 0;
+				self.insert_func(FuncType::Arcos);
 			},
 			gui::ButtonID::Tan => {
-				// tan
-				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
-				let func = VToken::Func(FuncType::Tan, inner_ref.clone());
-				
-				self.insert_token(func);
-				
-				// Move cursor inside
-				self.ex = inner_ref;
-				self.pos = 0;
+				self.insert_func(FuncType::Tan);
 			},
 			gui::ButtonID::Artan => {
-				// arsin
-				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
-				let func = VToken::Func(FuncType::Artan, inner_ref.clone());
-				
-				self.insert_token(func);
-				
-				// Move cursor inside
-				self.ex = inner_ref;
-				self.pos = 0;
+				self.insert_func(FuncType::Artan);
 			},
 			gui::ButtonID::Sqrt => {
-				// Insert √
-				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
-				let func = VToken::Func(FuncType::Sqrt, inner_ref.clone());
-				
-				self.insert_token(func);
-				
-				// Move cursor inside
-				self.ex = inner_ref;
-				self.pos = 0;
+				self.insert_func(FuncType::Sqrt);
 			},
 			gui::ButtonID::Cbrt => {
 				// Produce cube root (∛)
@@ -194,19 +139,39 @@ impl Editor {
 				self.pos = 0;
 			},
 			gui::ButtonID::Var(id) => {
-				self.insert_token(VToken::Char(id));
-				self.pos += 1;
+				if gui::get_gui_state() == gui::GuiState::Store {
+					let peek = self.vm.peek();
+					println!("id({:?}), peek: {:?}", id, peek);
+					if peek.is_some() {
+						self.vm.set_var(id, peek.unwrap());
+					}
+					gui::set_gui_state(gui::GuiState::Normal);
+				} else {
+					self.insert_token(VToken::Char(id));
+					self.pos += 1;
+				}
 			}
 		}
 		
 		if unhandled {
-			println!("button clicked: {:?} (unhandled)", id);
+			println!("button clicked (unhandled): {:?}", id);
 		} else {
-			println!("button clicked: {:?} (handled)", id);
+			println!("button clicked (  handled): {:?}", id);
 			gui::dirty_expression();
 		}
 		
 		return true;
+	}
+	
+	pub fn insert_func(&mut self, func: FuncType) {
+		let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
+		let func = VToken::Func(func, inner_ref.clone());
+		
+		self.insert_token(func);
+		
+		// Move cursor inside
+		self.ex = inner_ref;
+		self.pos = 0;
 	}
 	
 	/// Inserts the text at `pos` in the expression `ex`.

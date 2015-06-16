@@ -31,12 +31,14 @@ pub enum ButtonID {
 
 static mut shift_btn_ptr: *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget;
 static mut ctrl_btn_ptr : *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget;
+static mut store_btn_ptr: *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget;
 
 pub fn dirty_expression() {
 	::get_window().queue_draw();
 	::get_editor().print();
+	::get_editor().vm.clear_stack();
 	let res = match expr_to_commands(::get_editor().root_ex.clone()) {
-		Ok(commands) => VM::new().get_result(&commands),
+		Ok(commands) => ::get_editor().vm.get_result(&commands),
 		Err(e) => { println!("error: {}", e); return; },
 	};
 	match res {
@@ -149,14 +151,17 @@ fn get_button_grid() -> Grid {
 	}
 	grid.attach(&frame, 0, 0, 1, 3);
 	
-	// Setup the SHIFT + CTRL buttons.
+	// Setup the SHIFT + CTRL + STORE buttons.
 	unsafe {
 		let shift_btn = CheckButton::new_with_label("SHIFT").unwrap();
 		let ctrl_btn  = CheckButton::new_with_label("CTRL" ).unwrap();
+		let store_btn = CheckButton::new_with_label("STORE").unwrap();
 		shift_btn_ptr = shift_btn.unwrap_widget();
 		ctrl_btn_ptr  = ctrl_btn .unwrap_widget();
+		store_btn_ptr = store_btn.unwrap_widget();
 		shift_btn.set_mode(false); shift_btn.set_focus_on_click(false);
-		ctrl_btn.set_mode(false); shift_btn.set_focus_on_click(false);
+		ctrl_btn .set_mode(false); ctrl_btn .set_focus_on_click(false);
+		store_btn.set_mode(false); store_btn.set_focus_on_click(false);
 		
 		shift_btn.connect_button_press_event(move |_, _| {
 			// If the other is on, turn it off
@@ -181,37 +186,38 @@ fn get_button_grid() -> Grid {
 			
 			Inhibit(true)
 		});
+		
+		store_btn.connect_button_press_event(move |_, _| {
+			// If the other is on, turn it off
+			if get_gui_state() == GuiState::Store {
+				set_gui_state(GuiState::Normal);
+			} else {
+				set_gui_state(GuiState::Store);
+			}
+			dirty_gui();
+			
+			Inhibit(true)
+		});
 		grid.attach(&shift_btn, 1, 0, 1, 1);
-		grid.attach(&ctrl_btn, 1, 1, 1, 1);
-	}
-	
-	// Setup a 2D vector of buttons
-	const NUM_BUTTONS: usize = 9;
-	let mut buttons: Vec<Button> = Vec::new();
-	buttons.reserve(NUM_BUTTONS as usize);
-	
-	// Set all the buttons to a default button
-	for _ in 0..NUM_BUTTONS {
-		let default_button = Button::new().unwrap();
-		default_button.set_size_request(75, -1); //23
-		default_button.set_hexpand(true);
-		default_button.set_focus_on_click(false);
-		buttons.push(default_button);
+		grid.attach(&ctrl_btn , 1, 1, 1, 1);
+		grid.attach(&store_btn, 1, 2, 1, 1);
 	}
 	
 	// Connect each individual button && atttch
-	make_and_attach_button(("Normal", "Shift", "Ctrl"), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 4, 2);
+	make_and_attach_button(("x²", "xⁿ", ""), (ButtonID::Square, ButtonID::Pow, ButtonID::Null), &grid, 2, 0);
+	make_and_attach_button(("sin", "arsin", "x"), (ButtonID::Sin, ButtonID::Arsin, ButtonID::Var('x')), &grid, 3, 0); // ⁻¹
+	make_and_attach_button(("cos", "arcos", "y"), (ButtonID::Cos, ButtonID::Arcos, ButtonID::Var('y')), &grid, 4, 0);
+	make_and_attach_button(("tan", "artan", "z"), (ButtonID::Tan, ButtonID::Artan, ButtonID::Var('z')), &grid, 5, 0);
 	
-	make_and_attach_button(("π", "φ", "e"), (ButtonID::Var('π'), ButtonID::Var('φ'), ButtonID::Var('e')), &grid, 1, 2);
-	make_and_attach_button(("x²", "xⁿ", ""), (ButtonID::Square, ButtonID::Pow, ButtonID::Null), &grid, 2, 2);
+	make_and_attach_button(("√x", "³√x", ""), (ButtonID::Sqrt, ButtonID::Cbrt, ButtonID::Null), &grid, 2, 1); // ∛
+	make_and_attach_button(("", "", ""), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 3, 1);
+	make_and_attach_button(("", "", ""), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 4, 1);
+	make_and_attach_button(("", "", ""), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 5, 1);
 	
-	make_and_attach_button(("sin", "sin⁻¹", "x"), (ButtonID::Sin, ButtonID::Arsin, ButtonID::Var('x')), &grid, 3, 0);
-	make_and_attach_button(("cos", "cos⁻¹", "y"), (ButtonID::Cos, ButtonID::Arcos, ButtonID::Var('y')), &grid, 4, 0);
-	make_and_attach_button(("tan", "tan⁻¹", "z"), (ButtonID::Tan, ButtonID::Artan, ButtonID::Var('z')), &grid, 5, 0);
-	
-	make_and_attach_button(("√x", "√x", "√x"), (ButtonID::Sqrt, ButtonID::Sqrt, ButtonID::Sqrt), &grid, 0, 3);
-	
-	make_and_attach_button(("∛x", "∛x", "∛x"), (ButtonID::Cbrt, ButtonID::Cbrt, ButtonID::Cbrt), &grid, 1, 3);
+	make_and_attach_button(("π", "φ", "e"), (ButtonID::Var('π'), ButtonID::Var('φ'), ButtonID::Var('e')), &grid, 2, 2);
+	make_and_attach_button(("", "", ""), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 3, 2);
+	make_and_attach_button(("", "", ""), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 4, 2);
+	make_and_attach_button(("", "", ""), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 5, 2);
 	
 	grid // Return
 }
@@ -227,7 +233,7 @@ fn make_and_attach_button(labels: (&'static str, &'static str, &'static str), id
 		match get_gui_state() {
 			GuiState::Normal => ::get_editor().handle_button_click(ids_clone.0.clone()),
 			GuiState::Shift  => ::get_editor().handle_button_click(ids_clone.1.clone()),
-			GuiState::Ctrl   => ::get_editor().handle_button_click(ids_clone.2.clone()),
+			GuiState::Ctrl | GuiState::Store => ::get_editor().handle_button_click(ids_clone.2.clone()),
 		};
 	});
 	
@@ -236,7 +242,7 @@ fn make_and_attach_button(labels: (&'static str, &'static str, &'static str), id
 		match get_gui_state() {
 			GuiState::Normal    => { change_button_attrib(&but, labels.0, ids.0 != ButtonID::Null); },
 			GuiState::Shift     => { change_button_attrib(&but, labels.1, ids.1 != ButtonID::Null); },
-			GuiState::Ctrl      => { change_button_attrib(&but, labels.2, ids.2 != ButtonID::Null); },
+			GuiState::Ctrl | GuiState::Store => { change_button_attrib(&but, labels.2, ids.2 != ButtonID::Null); },
 		};
 		Inhibit(false)
 	});
@@ -257,22 +263,25 @@ fn change_button_attrib(but: &Button, label: &'static str, enabled: bool) {
 pub enum GuiState {
 	Normal,
 	Shift,
-	Ctrl
+	Ctrl,
+	Store
 }
 static mut gui_state: GuiState = GuiState::Normal;
 
 pub fn get_gui_state() -> GuiState {
 	unsafe { gui_state.clone() }
 }
-fn set_gui_state(state: GuiState) {
+pub fn set_gui_state(state: GuiState) {
 	unsafe {
 		let shift_btn = CheckButton::wrap_widget(shift_btn_ptr);
 		let ctrl_btn  = CheckButton::wrap_widget(ctrl_btn_ptr );
+		let store_btn = CheckButton::wrap_widget(store_btn_ptr);
 		gui_state = state;
 		match state {
-			GuiState::Normal => { shift_btn.set_active(false); ctrl_btn.set_active(false); },
-			GuiState::Shift  => { shift_btn.set_active(true ); ctrl_btn.set_active(false); },
-			GuiState::Ctrl   => { shift_btn.set_active(false); ctrl_btn.set_active(true ); },
+			GuiState::Normal => { shift_btn.set_active(false); ctrl_btn.set_active(false); store_btn.set_active(false); },
+			GuiState::Shift  => { shift_btn.set_active(true ); ctrl_btn.set_active(false); store_btn.set_active(false); },
+			GuiState::Ctrl   => { shift_btn.set_active(false); ctrl_btn.set_active(true ); store_btn.set_active(false); },
+			GuiState::Store  => { shift_btn.set_active(false); ctrl_btn.set_active(true ); store_btn.set_active(true ); },
 		}
 		dirty_gui();
 	}
