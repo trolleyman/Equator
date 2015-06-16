@@ -1,7 +1,6 @@
 /// Module for turning the equation into commands
 use std::collections::HashMap;
 use std::fmt::Write;
-
 use consts::*;
 use vis::*;
 use func::*;

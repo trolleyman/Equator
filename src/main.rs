@@ -1,6 +1,7 @@
 #![feature(core, alloc, convert, box_syntax, str_char)]
 #![allow(non_upper_case_globals)]
 extern crate gtk;
+extern crate gtk_sys;
 extern crate gdk;
 extern crate cairo;
 
