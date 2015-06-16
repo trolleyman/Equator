@@ -11,10 +11,11 @@ use err::*;
 mod Com {
 	pub use super::Command::*;
 }
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Command {
 	Var(char), // Pushes variable with char identifier to the stack
 	Int(i64), // Pushes integer literal to the stack
+	Float(f64), // Pushed float literal to the stack
 	Add, // A, B => A + B
 	Sub, // A, B => A - B
 	Mul, // A, B => A * B
@@ -27,61 +28,12 @@ pub enum Command {
 	ParenClose, // NOP. Should not be in the final vector.
 }
 impl Command {
-	pub fn execute(&self, vm: &mut VM) -> Result<(), ParseError> {
-		if vm.stack_size() < self.pops() {
-			return Err(StackExhausted);
-		}
-		match self {
-			&Com::Var(id) => {
-				let val = vm.get_var(id);
-				vm.push(val);
-			},
-			&Com::Int(v) => vm.push(v as f64),
-			&Com::Add => {
-				let b = vm.pop().unwrap(); // Intentional B first.
-				let a = vm.pop().unwrap();
-				vm.push(a + b);
-			},
-			&Com::Sub => {
-				let b = vm.pop().unwrap(); // Intentional B first.
-				let a = vm.pop().unwrap();
-				vm.push(a - b);
-			},
-			&Com::Mul => {
-				let b = vm.pop().unwrap(); // Intentional B first.
-				let a = vm.pop().unwrap();
-				vm.push(a * b);
-			},
-			&Com::Div => {
-				let b = vm.pop().unwrap(); // Intentional B first.
-				let a = vm.pop().unwrap();
-				vm.push(a / b);
-			},
-			&Com::Pow => {
-				let b = vm.pop().unwrap(); // Intentional B first.
-				let a = vm.pop().unwrap();
-				vm.push(a.powf(b));
-			},
-			&Com::Func(ref func) => {
-				let sqrt = func.execute(vm.pop().unwrap());
-				vm.push(sqrt);
-			},
-			&Com::Root => {
-				let b = vm.pop().unwrap(); // Intentional B first.
-				let a = vm.pop().unwrap();
-				vm.push(b.powf(a.recip()));
-			},
-			&Com::Comma      => return Err(IllegalChar),
-			&Com::ParenOpen  => return Err(IllegalChar),
-			&Com::ParenClose => return Err(IllegalChar),
-		}
-		Ok(())
-	}
 	/// Number of numbers that this command pops from the stack
 	pub fn pops(&self) -> usize {
 		match self {
 			&Com::Var(_) => 0,
 			&Com::Int(_) => 0,
+			&Com::Float(_) => 0,
 			&Com::Add => 2,
 			&Com::Sub => 2,
 			&Com::Mul => 2,
@@ -99,6 +51,7 @@ impl Command {
 		match self {
 			&Com::Var(_) => 1,
 			&Com::Int(_) => 1,
+			&Com::Float(_) => 1,
 			&Com::Add => 1,
 			&Com::Sub => 1,
 			&Com::Mul => 1,
@@ -114,7 +67,7 @@ impl Command {
 	pub fn is_operator(&self) -> bool {
 		match self {
 			&Com::Add | &Com::Sub | &Com::Mul | &Com::Div | &Com::Pow | &Com::Func(_) | &Com::Root => true,
-			&Com::Var(_) | &Com::Int(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false
+			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false
 		}
 	}
 	pub fn prescedence(&self) -> Option<u32> {
@@ -123,21 +76,21 @@ impl Command {
 			&Com::Mul | &Com::Div => Some(2),
 			&Com::Pow => Some(3),
 			&Com::Func(_) | &Com::Root => Some(4),
-			&Com::Var(_) | &Com::Int(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => None
+			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => None
 		}
 	}
 	pub fn is_left_associative(&self) -> bool {
 		match self {
 			&Com::Add | &Com::Sub | &Com::Mul | &Com::Div | &Com::Func(_) | &Com::Root => true,
 			&Com::Pow => false,
-			&Com::Var(_) | &Com::Int(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false,
+			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false,
 		}
 	}
 	pub fn is_right_associative(&self) -> bool {
 		match self {
 			&Com::Add | &Com::Sub | &Com::Mul | &Com::Div | &Com::Func(_) | &Com::Root => false,
 			&Com::Pow => true,
-			&Com::Var(_) | &Com::Int(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false,
+			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false,
 		}
 	}
 }
@@ -148,6 +101,7 @@ impl Command {
 pub struct VM {
 	stack: Vec<f64>,
 	vars: HashMap<char, f64>,
+	num: usize, // number of commands executed on this VM
 }
 impl VM {
 	pub fn new() -> VM {
@@ -155,7 +109,7 @@ impl VM {
 		hm.insert('π', M_PI);
 		hm.insert('e', M_E);
 		hm.insert('φ', M_GOLDEN_RATIO);
-		VM{stack:Vec::new(), vars:hm}
+		VM{stack:Vec::new(), vars:hm, num:0}
 	}
 	#[inline(always)]
 	pub fn push(&mut self, v: f64) {
@@ -177,7 +131,93 @@ impl VM {
 	pub fn stack_size(&self) -> usize {
 		self.stack.len()
 	}
+	pub fn get_result(&mut self, coms: &[Command]) -> Result<f64, ParseError> {
+		try!(self.execute_all(coms));
+		if self.stack_size() == 0 {
+			Err(StackExhausted)
+		} else if self.stack_size() > 1 {
+			Err(SyntaxError)
+		} else {
+			Ok(self.pop().unwrap())
+		}
+	}
+	pub fn execute_all(&mut self, coms: &[Command]) -> Result<(), ParseError> {
+		let debug_print: bool = unsafe { debug_print_stage3 };
+		
+		for com in coms.iter() {
+			if debug_print {
+				let mut vars_str = String::with_capacity(16);
+				for (k, v) in self.vars.iter() {
+					let _ = write!(vars_str, "{}:{} ", k, v);
+				}
+				vars_str.trim();
+				let mut stack_str = String::with_capacity(32);
+				for v in self.stack.iter() {
+					let _ = write!(stack_str, "{} ", v);
+				}
+				stack_str.trim();
+				
+				println!("{: <20} | {: <12} | {}", vars_str, format!("{:?}", com), stack_str);
+			}
+			try!(self.execute(com));
+		}
+		Ok(())
+	}
+	pub fn execute(&mut self, com: &Command) -> Result<(), ParseError> {
+		if self.stack_size() < com.pops() {
+			return Err(StackExhausted);
+		}
+		match com {
+			&Com::Var(id) => {
+				let val = self.get_var(id);
+				self.push(val);
+			},
+			&Com::Int(v) => self.push(v as f64),
+			&Com::Float(v) => self.push(v),
+			&Com::Add => {
+				let b = self.pop().unwrap(); // Intentional B first.
+				let a = self.pop().unwrap();
+				self.push(a + b);
+			},
+			&Com::Sub => {
+				let b = self.pop().unwrap(); // Intentional B first.
+				let a = self.pop().unwrap();
+				self.push(a - b);
+			},
+			&Com::Mul => {
+				let b = self.pop().unwrap(); // Intentional B first.
+				let a = self.pop().unwrap();
+				self.push(a * b);
+			},
+			&Com::Div => {
+				let b = self.pop().unwrap(); // Intentional B first.
+				let a = self.pop().unwrap();
+				self.push(a / b);
+			},
+			&Com::Pow => {
+				let b = self.pop().unwrap(); // Intentional B first.
+				let a = self.pop().unwrap();
+				self.push(a.powf(b));
+			},
+			&Com::Func(ref func) => {
+				let sqrt = func.execute(self.pop().unwrap());
+				self.push(sqrt);
+			},
+			&Com::Root => {
+				let b = self.pop().unwrap(); // Intentional B first.
+				let a = self.pop().unwrap();
+				self.push(b.powf(a.recip()));
+			},
+			&Com::Comma | &Com::ParenOpen | &Com::ParenClose => return Err(IllegalCommand(com.clone(), self.num)),
+		}
+		self.num += 1;
+		Ok(())
+	}
 }
+
+pub static mut debug_print_stage1: bool = false;
+pub static mut debug_print_stage2: bool = false;
+pub static mut debug_print_stage3: bool = false;
 
 // Changes ex into a vector of commands to execute to get the value of the expression.
 pub fn expr_to_commands(ex: VExprRef) -> Result<Vec<Command>, ParseError> {
@@ -191,17 +231,18 @@ pub fn expr_to_commands(ex: VExprRef) -> Result<Vec<Command>, ParseError> {
 	Ok(postfix)
 }
 
+#[allow(unused_assignments)]
 fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseError> {
 	let mut num_buf = String::new();
 	
-	const DEBUG_PRINT: bool = false;
+	let debug_print: bool = unsafe { debug_print_stage1 };
 	
-	if DEBUG_PRINT {
+	if debug_print {
 		println!("{: ^18} | {: ^25} | {: ^18} | {: ^20}", "infix", "tok", "last_tok", "num_buf");
 		println!("-------------------|---------------------------|--------------------|---------------------");
 	}
 	for tok in ex.borrow().tokens.iter() {
-		let mut last_tok: Option<Command> = if infix.len() >= 1 {
+		let mut last_tok = if infix.len() >= 1 {
 			infix.get(infix.len() - 1).map(|c| { c.clone() })
 		} else {
 			None
@@ -211,26 +252,13 @@ fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseErro
 			&VToken::Digit(ref dgt) => {
 				num_buf.push(*dgt);
 			},
+			&VToken::Char('.') => {
+				num_buf.push('.');
+			},
 			_ if num_buf.len() >= 1 => {
 				// Flush buffer
-				let i = match num_buf.parse() {
-					Ok(v) => v,
-					Err(_) => return Err(OverflowError),
-				};
+				infix.push(try!(parse_num_buf(&num_buf)));
 				num_buf.clear();
-				
-				match last_tok {
-					Some(Com::Var(_)) => {
-						// Var/Int -- add Com::Mul in between them
-						infix.push(Com::Mul);
-					},
-					Some(Com::Int(_)) => {
-						// Int/Int -- error
-						return Err(SyntaxError);
-					},
-					_ => {}
-				}
-				infix.push(Com::Int(i));
 			},
 			_ => {}
 		}
@@ -247,11 +275,8 @@ fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseErro
 				match chr {
 					&'(' => infix.push(Com::ParenOpen),
 					&')' => infix.push(Com::ParenClose),
+					&'.' => {},
 					_ => {
-						if match last_tok { Some(Com::Var(_)) | Some(Com::Int(_)) => true, _ => false } {
-							// Var/Var or Int/Var -- add Com::Mul in between them
-							infix.push(Com::Mul);
-						}
 						infix.push(Com::Var(*chr));
 					},
 				}
@@ -285,35 +310,52 @@ fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseErro
 				infix.push(Com::ParenClose);
 			}
 		}
-		if DEBUG_PRINT { println!("{: >18} | {: <25} | {: <18} | {: <20}", commands_to_string(&infix, true), format!("{:?}", tok), format!("{:?}", last_tok), num_buf); }
+		if debug_print { println!("{: >18} | {: <25} | {: <18} | {: <20}", commands_to_string(&infix, true), format!("{:?}", tok), format!("{:?}", last_tok), num_buf); }
 	}
 	if num_buf.len() >= 1 {
-		let i = match num_buf.parse() {
-			Ok(v) => v,
-			Err(_) => return Err(OverflowError),
-		};
-		infix.push(Com::Int(i));
+		// Flush buffer
+		infix.push(try!(parse_num_buf(&num_buf)));
+		num_buf.clear();
 	}
 	
-	// Check for errors.
-
-	
+	// Check for errors
 	Ok(())
 }
+
+fn parse_num_buf(num_buf: &str) -> Result<Command, ParseError> {
+	// Flush buffer
+	let com = if num_buf.find('.').is_some() {
+		// Try parsing as float
+		match num_buf.parse() {
+			Ok(v) => Com::Float(v),
+			Err(_) => return Err(FloatParseError),
+		}
+	} else {
+		// Try parsing as int
+		match num_buf.parse() {
+			Ok(v) => Com::Int(v),
+			Err(_) => return Err(OverflowError),
+		}
+	};
+	
+	Ok(com)
+}
+
 /// What follows is the "shunting yard algorithm" (https://en.wikipedia.org/wiki/Shunting-yard_algorithm)
 fn infix_to_postfix(infix: &[Command]) -> Result<Vec<Command>, ParseError> {
 	let mut postfix: Vec<Command> = Vec::new();
 	let mut stack: Vec<Command> = Vec::new();
 	
-	const DEBUG_PRINT: bool = false;
+	let debug_print: bool = unsafe { debug_print_stage2 };
 	
-	if DEBUG_PRINT {
+	if debug_print {
 		println!("{: ^15} | {: ^18} | {: ^18}", "tok", "stack", "output");
 		println!("----------------|--------------------|-------------------");
 	}
+	let mut i = 0;
 	for tok in infix {
 		match tok {
-			&Com::Var(_) | &Com::Int(_) => postfix.push(tok.clone()),
+			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) => postfix.push(tok.clone()),
 			&Com::Func(_) => stack.push(tok.clone()),
 			&Com::Comma => {
 				loop {
@@ -354,9 +396,10 @@ fn infix_to_postfix(infix: &[Command]) -> Result<Vec<Command>, ParseError> {
 				}
 				stack.push(tok.clone());
 			},
-			_ => return Err(IllegalChar)
+			_ => return Err(IllegalCommand(tok.clone(), i))
 		}
-		if DEBUG_PRINT { println!("{: >15} | {: <18} | {: <18}", format!("{:?}", tok), commands_to_string(&stack, true), commands_to_string(&postfix, true)); }
+		if debug_print { println!("{: >15} | {: <18} | {: <18}", format!("{:?}", tok), commands_to_string(&stack, true), commands_to_string(&postfix, true)); }
+		i += 1;
 	}
 	while stack.len() > 0 {
 		let pop = stack.pop().unwrap();
@@ -369,25 +412,6 @@ fn infix_to_postfix(infix: &[Command]) -> Result<Vec<Command>, ParseError> {
 	Ok(postfix)
 }
 
-pub fn execute_commands_with_vm(coms: &[Command], vm: &mut VM) -> Result<(), ParseError> {
-	for com in coms.iter() {
-		try!(com.execute(vm));
-	}
-	Ok(())
-}
-
-pub fn execute_commands(coms: &[Command]) -> Result<f64, ParseError> {
-	let mut vm = VM::new();
-	try!(execute_commands_with_vm(coms, &mut vm));
-	if vm.stack_size() == 0 {
-		Err(StackExhausted)
-	} else if vm.stack_size() > 1 {
-		Err(SyntaxError)
-	} else {
-		Ok(vm.pop().unwrap())
-	}
-}
-
 pub fn print_commands(coms: &[Command], spaces: bool) {
 	println!("{}", commands_to_string(coms, spaces));
 }
@@ -398,6 +422,7 @@ pub fn commands_to_string(coms: &[Command], spaces: bool) -> String {
 		match com {
 			&Com::Var(ref var) => s.push(*var),
 			&Com::Int(ref i) => { let _ = write!(s, "{}", i); },
+			&Com::Float(ref f) => { let _ = write!(s, "{}", f); },
 			&Com::Add => s.push(CHAR_ADD),
 			&Com::Sub => s.push(CHAR_SUB),
 			&Com::Mul => s.push(CHAR_MUL),
@@ -408,7 +433,7 @@ pub fn commands_to_string(coms: &[Command], spaces: bool) -> String {
 			&Com::Comma => s.push(','),
 			&Com::ParenOpen => s.push('('),
 			&Com::ParenClose => {
-				if s.len() != 0 && s.is_char_boundary(s.len() - 1) && s.char_at(s.len() - 1) == ' ' {
+				if !spaces && s.len() != 0 && s.is_char_boundary(s.len() - 1) && s.char_at(s.len() - 1) == ' ' {
 					s.pop();
 				}
 				s.push(')');
@@ -436,7 +461,7 @@ fn commands_test() {
 #[allow(dead_code)]
 fn test_command(coms: &[Command], expected_res: Option<f64>) {
 	const ACCEPTABLE_ERROR: f64 = ::std::f64::EPSILON * 8.0;
-	let res = execute_commands(coms).ok();
+	let res = VM::new().get_result(coms).ok();
 	println!("{} == {:?}? (={:?})", commands_to_string(coms, true), expected_res, res);
 	match (res, expected_res) {
 		(None, None) => {},
