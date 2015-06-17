@@ -12,9 +12,14 @@ use func::*;
 
 pub struct Editor {
 	pub root_ex: VExprRef,
+	pub cursor: Cursor,
+	pub vm: com::VM,
+}
+
+#[derive(Clone)]
+pub struct Cursor {
 	pub ex: VExprRef,
 	pub pos: usize,
-	pub vm: com::VM,
 }
 
 impl Editor {
@@ -23,7 +28,7 @@ impl Editor {
 		Editor::with_expression(ex, 0)
 	}
 	pub fn with_expression(ex: VExprRef, pos: usize) -> Self {
-		Editor{ root_ex:ex.clone(), ex:ex, pos:pos, vm:com::VM::new()}
+		Editor{ root_ex:ex.clone(), cursor:Cursor{ex:ex, pos:pos}, vm:com::VM::new()}
 	}
 	
 	/// Handles the keypress given, inserting the key pressed at the cursor's position.
@@ -73,7 +78,7 @@ impl Editor {
 	
 	/// Inserts the token at `self.pos`.
 	pub fn insert_token(&mut self, tok: VToken) {
-		self.ex.borrow_mut().tokens.insert(self.pos, tok);
+		self.cursor.ex.borrow_mut().tokens.insert(self.cursor.pos, tok);
 	}
 	
 	/// Returns true if the button press has been handled.
@@ -84,72 +89,127 @@ impl Editor {
 			gui::ButtonID::Null => {}
 			gui::ButtonID::Pow => {
 				// Insert ^
-				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
+				let inner_ref = VExpr::with_parent(self.cursor.ex.clone()).to_ref();
 				let exp = VToken::Pow(inner_ref.clone());
 				
 				self.insert_token(exp);
 				
 				// Move cursor inside
-				self.ex = inner_ref;
-				self.pos = 0;
+				self.cursor.ex = inner_ref;
+				self.cursor.pos = 0;
 			},
 			gui::ButtonID::Square => {
 				// ^2
-				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
+				let inner_ref = VExpr::with_parent(self.cursor.ex.clone()).to_ref();
 				inner_ref.borrow_mut().tokens.push(VToken::Digit('2'));
 				let exp = VToken::Pow(inner_ref.clone());
 				
 				self.insert_token(exp);
 				
 				// Move cursor inside
-				self.pos += 1;
+				self.cursor.ex  = inner_ref;
+				self.cursor.pos = 0;
+			},
+			gui::ButtonID::E => {
+				// e^blank
+				let inner_ref = VExpr::with_parent(self.cursor.ex.clone()).to_ref();
+				let exp = VToken::Pow(inner_ref.clone());
+				
+				self.insert_token(exp);
+				self.insert_token(VToken::Char('e'));
+				
+				// Move cursor inside
+				self.cursor.ex  = inner_ref;
+				self.cursor.pos = 0;
+			},
+			gui::ButtonID::Ln => {
+				self.insert_func(FuncType::Ln);
 			},
 			gui::ButtonID::Sin => {
 				self.insert_func(FuncType::Sin);
 			},
-			gui::ButtonID::Arsin => {
-				self.insert_func(FuncType::Arsin);
-			},
 			gui::ButtonID::Cos => {
 				self.insert_func(FuncType::Cos);
-			},
-			gui::ButtonID::Arcos => {
-				self.insert_func(FuncType::Arcos);
 			},
 			gui::ButtonID::Tan => {
 				self.insert_func(FuncType::Tan);
 			},
+			gui::ButtonID::Arsin => {
+				self.insert_func(FuncType::Arsin);
+			},
+			gui::ButtonID::Arcos => {
+				self.insert_func(FuncType::Arcos);
+			},
 			gui::ButtonID::Artan => {
 				self.insert_func(FuncType::Artan);
+			},
+			gui::ButtonID::Sinh => {
+				self.insert_func(FuncType::Sinh);
+			},
+			gui::ButtonID::Cosh => {
+				self.insert_func(FuncType::Cosh);
+			},
+			gui::ButtonID::Tanh => {
+				self.insert_func(FuncType::Tanh);
+			},
+			gui::ButtonID::Arsinh => {
+				self.insert_func(FuncType::Arsinh);
+			},
+			gui::ButtonID::Arcosh => {
+				self.insert_func(FuncType::Arcosh);
+			},
+			gui::ButtonID::Artanh => {
+				self.insert_func(FuncType::Artanh);
 			},
 			gui::ButtonID::Sqrt => {
 				self.insert_func(FuncType::Sqrt);
 			},
+			gui::ButtonID::Abs => {
+				self.insert_func(FuncType::Abs);
+			},
+			gui::ButtonID::Fact => {
+				self.insert_func(FuncType::Fact);
+			}
+			gui::ButtonID::Frac => {
+				// Insert ^
+				let num_ref = VExpr::with_parent(self.cursor.ex.clone()).to_ref();
+				let den_ref = VExpr::with_parent(self.cursor.ex.clone()).to_ref();
+				let frac = VToken::Frac(den_ref.clone(), num_ref.clone());
+				
+				self.insert_token(frac);
+				
+				// Move cursor inside
+				self.cursor.ex = num_ref;
+				self.cursor.pos = 0;
+			},
 			gui::ButtonID::Cbrt => {
 				// Produce cube root (∛)
-				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
-				let degree_ref = VExpr::with_parent(self.ex.clone()).to_ref();
+				let inner_ref = VExpr::with_parent(self.cursor.ex.clone()).to_ref();
+				let degree_ref = VExpr::with_parent(self.cursor.ex.clone()).to_ref();
 				degree_ref.borrow_mut().tokens.push(VToken::Digit('3'));
 				let root = VToken::Root(degree_ref.clone(), inner_ref.clone());
 				
 				self.insert_token(root);
 				
 				// Move cursor inside
-				self.ex = inner_ref;
-				self.pos = 0;
+				self.cursor.ex = inner_ref;
+				self.cursor.pos = 0;
 			},
 			gui::ButtonID::Var(id) => {
 				if gui::get_gui_state() == gui::GuiState::Store {
-					let peek = self.vm.peek();
-					println!("id({:?}), peek: {:?}", id, peek);
-					if peek.is_some() {
-						self.vm.set_var(id, peek.unwrap());
+					let res = self.vm.get_last_result();
+					if res.is_ok() {
+						self.vm.set_var(id, res.ok().unwrap());
 					}
 					gui::set_gui_state(gui::GuiState::Normal);
 				} else {
 					self.insert_token(VToken::Char(id));
-					self.pos += 1;
+					self.cursor.pos += 1;
 				}
+			},
+			gui::ButtonID::Const(id) => {
+				self.insert_token(VToken::Char(id));
+				self.cursor.pos += 1;
 			}
 		}
 		
@@ -164,14 +224,14 @@ impl Editor {
 	}
 	
 	pub fn insert_func(&mut self, func: FuncType) {
-		let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
+		let inner_ref = VExpr::with_parent(self.cursor.ex.clone()).to_ref();
 		let func = VToken::Func(func, inner_ref.clone());
 		
 		self.insert_token(func);
 		
 		// Move cursor inside
-		self.ex = inner_ref;
-		self.pos = 0;
+		self.cursor.ex = inner_ref;
+		self.cursor.pos = 0;
 	}
 	
 	/// Inserts the text at `pos` in the expression `ex`.
@@ -188,46 +248,61 @@ impl Editor {
 	/// Returns true if the character has been inserted
 	pub fn insert_char(&mut self, c: char) -> bool {
 		match c {
-			'a' ... 'z' | 'A' ... 'Z' | '(' | ')' | '.' => {
+			'a' ... 'z' | 'A' ... 'Z' => {
+				if gui::get_gui_state() == gui::GuiState::Store && c != 'e' {
+					// Store the last result in the variable
+					match self.vm.get_last_result() {
+						Ok(val) => self.vm.set_var(c, val),
+						Err(_) => {},
+					}
+					gui::set_gui_state(gui::GuiState::Normal);
+					false
+				} else {
+					self.insert_token(VToken::Char(c));
+					self.cursor.pos += 1;
+					true
+				}
+			},
+			'(' | ')' | '.' => {
 				self.insert_token(VToken::Char(c));
-				self.pos += 1;
+				self.cursor.pos += 1;
 				true
 			},
 			_ if c.is_digit(10) => {
 				self.insert_token(VToken::Digit(c));
-				self.pos += 1;
+				self.cursor.pos += 1;
 				true
 			},
 			'+' => {
 				self.insert_token(VToken::Op(OpType::Add));
-				self.pos += 1;
+				self.cursor.pos += 1;
 				true
 			},
 			'-' | CHAR_SUB => {
 				self.insert_token(VToken::Op(OpType::Sub));
-				self.pos += 1;
+				self.cursor.pos += 1;
 				true
 			},
 			'*' | CHAR_MUL => {
 				self.insert_token(VToken::Op(OpType::Mul));
-				self.pos += 1;
+				self.cursor.pos += 1;
 				true
 			},
 			'/' | CHAR_DIV => {
 				self.insert_token(VToken::Op(OpType::Div));
-				self.pos += 1;
+				self.cursor.pos += 1;
 				true
 			},
 			'^' => {
 				// Insert ^()
-				let inner_ref = VExpr::with_parent(self.ex.clone()).to_ref();
+				let inner_ref = VExpr::with_parent(self.cursor.ex.clone()).to_ref();
 				let pow = VToken::Pow(inner_ref.clone());
 				
 				self.insert_token(pow);
 				
 				// Move cursor inside
-				self.ex = inner_ref;
-				self.pos = 0;
+				self.cursor.ex = inner_ref;
+				self.cursor.pos = 0;
 				true
 			},
 			_ => false
@@ -237,19 +312,19 @@ impl Editor {
 	/// Performs a delete at `self.pos`. If successful, return true.
 	pub fn delete(&mut self) -> bool {
 		let pos_in_bounds = {
-			self.ex.borrow().tokens.get(self.pos).is_some()
+			self.cursor.ex.borrow().tokens.get(self.cursor.pos).is_some()
 		};
 		// If token at pos, delete that.
 		if pos_in_bounds {
-			let ex_clone = self.ex.clone();
+			let ex_clone = self.cursor.ex.clone();
 			let mut ex = ex_clone.borrow_mut();
-			ex.tokens.remove(self.pos);
+			ex.tokens.remove(self.cursor.pos);
 		} else {
 			// Else, try and delete parent.
 			if self.move_up() {
-				let ex_clone = self.ex.clone();
+				let ex_clone = self.cursor.ex.clone();
 				let mut ex = ex_clone.borrow_mut();
-				ex.tokens.remove(self.pos);
+				ex.tokens.remove(self.cursor.pos);
 			} else {
 				return false;
 			}
@@ -268,13 +343,13 @@ impl Editor {
 	
 	/// Moves the cursor left one position. If successful, return true.
 	pub fn move_left(&mut self) -> bool {
-		if self.pos == 0 || self.ex.borrow().tokens.get(self.pos - 1).is_none() {
+		if self.cursor.pos == 0 || self.cursor.ex.borrow().tokens.get(self.cursor.pos - 1).is_none() {
 			// Move up to the parent, if there is one
-			let orig_ex = self.ex.clone();
+			let orig_ex = self.cursor.ex.clone();
 			if !self.move_up() {
 				return false;
 			}
-			let exprs = self.ex.borrow().tokens[self.pos].get_inner_expr();
+			let exprs = self.cursor.ex.borrow().tokens[self.cursor.pos].get_inner_expr();
 			let mut found: isize = -1;
 			for i in 0..exprs.len() {
 				if unsafe { exprs[i].as_unsafe_cell().get() == orig_ex.as_unsafe_cell().get() } {
@@ -283,23 +358,23 @@ impl Editor {
 				}
 			}
 			if found <= 0 || found as usize >= exprs.len() {
-				//if self.pos != 0 {
-				//	//self.pos -= 1;
+				//if self.cursor.pos != 0 {
+				//	//self.cursor.pos -= 1;
 				//} else {
 				//	return false;
 				//}
 			} else {
-				self.ex = exprs[found as usize - 1].clone();
-				self.pos = self.ex.borrow().tokens.len();
+				self.cursor.ex = exprs[found as usize - 1].clone();
+				self.cursor.pos = self.cursor.ex.borrow().tokens.len();
 			}
 			return true;
 		} else {
 			// Try and drill down into a token
-			self.pos -= 1;
-			let exprs = self.ex.borrow().tokens[self.pos].get_inner_expr();
+			self.cursor.pos -= 1;
+			let exprs = self.cursor.ex.borrow().tokens[self.cursor.pos].get_inner_expr();
 			if exprs.len() != 0 {
-				self.ex = exprs[exprs.len() - 1].clone();
-				self.pos = self.ex.borrow().tokens.len();
+				self.cursor.ex = exprs[exprs.len() - 1].clone();
+				self.cursor.pos = self.cursor.ex.borrow().tokens.len();
 			}
 			return true;
 		}
@@ -310,21 +385,21 @@ impl Editor {
 	/// Example progression:
 	/// 2|3^(98)+ => 23|^(98)+ => 23|^(98)+ => 23^(|98)+ => 23^(9|8)+ => 23^(98|)+ => 23^(98)|+ => 23^(98)+| => 23^(98)+| ... etc.
 	pub fn move_right(&mut self) -> bool {
-		let orig_pos = self.pos;
-		let orig_ex = self.ex.clone();
+		let orig_pos = self.cursor.pos;
+		let orig_ex = self.cursor.ex.clone();
 		
 		// Try move down
 		if !self.move_down() {
 			// If not possible, move forward.
-			self.pos += 1;
-			if self.pos > self.ex.borrow().tokens.len() {
+			self.cursor.pos += 1;
+			if self.cursor.pos > self.cursor.ex.borrow().tokens.len() {
 				// If out of range, move up + forward.
 				if !self.move_up() {
 					// If not successful, move back again to original place.
-					self.pos = orig_pos;
+					self.cursor.pos = orig_pos;
 					return false;
 				} else {
-					let exprs = self.ex.borrow().tokens[self.pos].get_inner_expr();
+					let exprs = self.cursor.ex.borrow().tokens[self.cursor.pos].get_inner_expr();
 					let mut found: isize = -1;
 					for i in 0..exprs.len() {
 						if unsafe { exprs[i].as_unsafe_cell().get() == orig_ex.as_unsafe_cell().get() } {
@@ -333,14 +408,14 @@ impl Editor {
 						}
 					}
 					if found == -1 || found as usize >= exprs.len() - 1 {
-						if self.pos < self.ex.borrow().tokens.len() {
-							self.pos += 1;
+						if self.cursor.pos < self.cursor.ex.borrow().tokens.len() {
+							self.cursor.pos += 1;
 						} else {
 							return false;
 						}
 					} else {
-						self.ex = exprs[found as usize+1].clone();
-						self.pos = 0;
+						self.cursor.ex = exprs[found as usize+1].clone();
+						self.cursor.pos = 0;
 					}
 				}
 			}
@@ -350,16 +425,16 @@ impl Editor {
 	
 	/// Trys to move the cursor down into the current token. Returns true if the operation was successful.
 	pub fn move_down(&mut self) -> bool {
-		let ex_clone = self.ex.clone();
+		let ex_clone = self.cursor.ex.clone();
 		let ex = ex_clone.borrow();
-		let tok = match ex.tokens.get(self.pos).clone() {
+		let tok = match ex.tokens.get(self.cursor.pos).clone() {
 			Some(t) => t,
 			None => return false
 		};
 		match tok.get_inner_expr().iter().idx(0) {
 			Some(expr) => {
-				self.ex = expr.clone();
-				self.pos = 0;
+				self.cursor.ex = expr.clone();
+				self.cursor.pos = 0;
 				true
 			},
 			None => false
@@ -368,24 +443,24 @@ impl Editor {
 	
 	/// Moves the cursor to the parent token of the current token. Returns true if the operation was successful.
 	pub fn move_up(&mut self) -> bool {
-		let ex_clone = self.ex.clone();
+		let ex_clone = self.cursor.ex.clone();
 		let ex = ex_clone.borrow();
 		if ex.parent.is_some() {
 			let parent_weak = ex.clone().parent.unwrap();
 			if let Some(parent) = parent_weak.upgrade() {
 				
-				self.ex = parent;
+				self.cursor.ex = parent;
 				// Right expr, wrong place. Find original ex in parent.
 				// Panic if not found, this signals some terrible breakdown in the structure of the expression.
 				let mut found = false;
-				let tokens = self.ex.borrow().clone().tokens;
+				let tokens = self.cursor.ex.borrow().clone().tokens;
 				for i in 0..tokens.len() {
 					unsafe {
 						let tok = tokens[i].clone();
 						for inner_ex in tok.get_inner_expr().iter() {
 							if inner_ex.as_unsafe_cell().get() == ex_clone.as_unsafe_cell().get() {
 								found = true;
-								self.pos = i;
+								self.cursor.pos = i;
 								break;
 							}
 						}
@@ -414,12 +489,12 @@ impl Editor {
 		let mut buffer = String::with_capacity(128);
 		let cursor_in_ex: bool = unsafe {
 			// Check if ex_ref and self.ex point to the same object
-			ex_ref.as_unsafe_cell().get() == self.ex.as_unsafe_cell().get()
+			ex_ref.as_unsafe_cell().get() == self.cursor.ex.as_unsafe_cell().get()
 		};
 		
 		let len = ex_ref.borrow().tokens.len();
 		for i in 0..len {
-			if cursor_in_ex && self.pos == i {
+			if cursor_in_ex && self.cursor.pos == i {
 				// Print cursor
 				buffer.push('|');
 			}
@@ -449,10 +524,17 @@ impl Editor {
 					buffer.push_str(self.expr_to_string(inner_ex).as_str());
 					buffer.push(')');
 				}
+				VToken::Frac(num_ex, den_ex) => {
+					buffer.push_str("((");
+					buffer.push_str(self.expr_to_string(num_ex).as_str());
+					buffer.push_str(")÷(");
+					buffer.push_str(self.expr_to_string(den_ex).as_str());
+					buffer.push_str("))");
+				}
 			}
 		}
 		
-		if cursor_in_ex && self.pos == ex_ref.borrow().tokens.len() {
+		if cursor_in_ex && self.cursor.pos == ex_ref.borrow().tokens.len() {
 			// Print cursor
 			if len == 0 {
 				buffer.push(CHAR_HLBOX);

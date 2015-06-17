@@ -32,21 +32,22 @@ pub enum VToken {
 	Digit(char),
 	Op(OpType),
 	Pow(VExprRef),
+	Frac(VExprRef, VExprRef), // (numerator, denominator)
 	Root(VExprRef, VExprRef),
-	Func(FuncType, VExprRef)
+	Func(FuncType, VExprRef),
 }
 impl VToken {
 	pub fn get_inner_expr(&self) -> Box<[VExprRef]> {
 		match self {
 			&Pow(ref ex) | &Func(_, ref ex) => box [ex.clone()],
-			&Root(ref ex1, ref ex2) => box [ex1.clone(), ex2.clone()],
+			&Root(ref ex1, ref ex2) | &Frac(ref ex1, ref ex2) => box [ex1.clone(), ex2.clone()],
 			&Op(_) | &Digit(_) | &Char(_) => box []
 		}
 	}
 	
 	pub fn has_inner_expr(&self) -> bool {
 		match self {
-			&Pow(_) | &Func(_, _) | &Root(_, _) => true,
+			&Pow(_) | &Func(_, _) | &Root(_, _) | &Frac(_, _) => true,
 			&Op(_) | &Digit(_) | &Char(_) => false
 		}
 	}

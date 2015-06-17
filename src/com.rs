@@ -10,7 +10,7 @@ use err::*;
 mod Com {
 	pub use super::Command::*;
 }
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Command {
 	Var(char), // Pushes variable with char identifier to the stack
 	Int(i64), // Pushes integer literal to the stack
@@ -113,8 +113,9 @@ impl Command {
 #[derive(Debug)]
 pub struct VM {
 	stack: Vec<f64>,
-	vars: HashMap<char, f64>,
-	num: usize, // number of commands executed on this VM
+	vars : HashMap<char, f64>,
+	num  : usize, // number of commands executed on this VM
+	last_result: Result<f64, ParseError>,
 }
 impl VM {
 	pub fn new() -> VM {
@@ -122,7 +123,7 @@ impl VM {
 		hm.insert('π', M_PI);
 		hm.insert('e', M_E);
 		hm.insert('φ', M_GOLDEN_RATIO);
-		VM{stack:Vec::new(), vars:hm, num:0}
+		VM{stack:Vec::new(), vars:hm, num:0, last_result:Err(LastResultNotInitialized)}
 	}
 	#[inline(always)]
 	pub fn push(&mut self, v: f64) {
@@ -142,7 +143,7 @@ impl VM {
 	}
 	#[inline(always)]
 	pub fn get_var(&mut self, id: char) -> f64 {
-		*self.vars.get(&id).unwrap_or(&0.0)
+		*self.vars.get(&id).unwrap_or(&::std::f64::NAN)
 	}
 	#[inline(always)]
 	pub fn clear_stack(&mut self) {
@@ -153,14 +154,26 @@ impl VM {
 		self.stack.len()
 	}
 	pub fn get_result(&mut self, coms: &[Command]) -> Result<f64, ParseError> {
-		try!(self.execute_all(coms));
-		if self.stack_size() == 0 {
+		match self.execute_all(coms) {
+			Ok(_) => {},
+			Err(e) => {
+				self.last_result = Err(e);
+				return Err(e);
+			}
+		}
+		let res = if self.stack_size() == 0 {
 			Err(StackExhausted)
 		} else if self.stack_size() > 1 {
 			Err(SyntaxError)
 		} else {
 			Ok(self.stack[0])
-		}
+		};
+		self.last_result = res;
+		res
+	}
+	#[inline(always)]
+	pub fn get_last_result(&self) -> Result<f64, ParseError> {
+		self.last_result
 	}
 	pub fn execute_all(&mut self, coms: &[Command]) -> Result<(), ParseError> {
 		let debug_print: bool = unsafe { debug_print_stage3 };
@@ -184,7 +197,7 @@ impl VM {
 		}
 		Ok(())
 	}
-	pub fn execute(&mut self, com: &Command) -> Result<(), ParseError> {
+	fn execute(&mut self, com: &Command) -> Result<(), ParseError> {
 		if self.stack_size() < com.pops() {
 			return Err(StackExhausted);
 		}
@@ -328,6 +341,17 @@ fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseErro
 				infix.push(Com::Func(func.clone()));
 				infix.push(Com::ParenOpen);
 				try!(expr_to_infix(inner_ex.clone(), infix));
+				infix.push(Com::ParenClose);
+			},
+			&VToken::Frac(ref num_ex, ref den_ex) => {
+				infix.push(Com::ParenOpen);
+				infix.push(Com::ParenOpen);
+				try!(expr_to_infix(num_ex.clone(), infix));
+				infix.push(Com::ParenClose);
+				infix.push(Com::Div);
+				infix.push(Com::ParenOpen);
+				try!(expr_to_infix(den_ex.clone(), infix));
+				infix.push(Com::ParenClose);
 				infix.push(Com::ParenClose);
 			}
 		}
