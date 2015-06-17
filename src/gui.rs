@@ -13,7 +13,7 @@ use render::render;
 use render::Extent;
 use com::*;
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum ButtonID {
 	Null,
 	Pow,
@@ -24,9 +24,21 @@ pub enum ButtonID {
 	Arsin,
 	Arcos,
 	Artan,
+	Sinh,
+	Cosh,
+	Tanh,
+	Arsinh,
+	Arcosh,
+	Artanh,
 	Sqrt,
 	Cbrt,
+	Frac,
+	E,
+	Ln,
+	Fact,
+	Abs,
 	Var(char),
+	Const(char),
 }
 
 static mut shift_btn_ptr: *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget;
@@ -55,7 +67,8 @@ pub fn init_gui() {
 	assert_eq!(::std::mem::size_of::<Extent>(), ::std::mem::size_of::<(f64,f64,f64,f64)>());
 	
 	let win: &Window = ::get_window();
-	win.set_size_request(250, 350);
+	win.set_default_size(250, 350);
+	win.set_double_buffered(true);
 	
 	// Get controls
 	let main_grid = Grid::new().unwrap();    // This is the grid that holds all of the controls,
@@ -205,19 +218,19 @@ fn get_button_grid() -> Grid {
 	
 	// Connect each individual button && atttch
 	make_and_attach_button(("x²", "xⁿ", ""), (ButtonID::Square, ButtonID::Pow, ButtonID::Null), &grid, 2, 0);
-	make_and_attach_button(("sin", "arsin", "x"), (ButtonID::Sin, ButtonID::Arsin, ButtonID::Var('x')), &grid, 3, 0); // ⁻¹
-	make_and_attach_button(("cos", "arcos", "y"), (ButtonID::Cos, ButtonID::Arcos, ButtonID::Var('y')), &grid, 4, 0);
-	make_and_attach_button(("tan", "artan", "z"), (ButtonID::Tan, ButtonID::Artan, ButtonID::Var('z')), &grid, 5, 0);
+	make_and_attach_button(("sin", "arsin", "a"), (ButtonID::Sin, ButtonID::Arsin, ButtonID::Var('a')), &grid, 3, 0); // ⁻¹
+	make_and_attach_button(("cos", "arcos", "b"), (ButtonID::Cos, ButtonID::Arcos, ButtonID::Var('b')), &grid, 4, 0);
+	make_and_attach_button(("tan", "artan", "c"), (ButtonID::Tan, ButtonID::Artan, ButtonID::Var('c')), &grid, 5, 0);
 	
-	make_and_attach_button(("√x", "³√x", ""), (ButtonID::Sqrt, ButtonID::Cbrt, ButtonID::Null), &grid, 2, 1); // ∛
-	make_and_attach_button(("", "", ""), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 3, 1);
-	make_and_attach_button(("", "", ""), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 4, 1);
-	make_and_attach_button(("", "", ""), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 5, 1);
+	make_and_attach_button(("√x"  , "³√x"   , "" ), (ButtonID::Sqrt, ButtonID::Cbrt  , ButtonID::Null    ), &grid, 2, 1); // ∛
+	make_and_attach_button(("sinh", "arsinh", "x"), (ButtonID::Sinh, ButtonID::Arsinh, ButtonID::Var('x')), &grid, 3, 1);
+	make_and_attach_button(("cosh", "arcosh", "y"), (ButtonID::Cosh, ButtonID::Arcosh, ButtonID::Var('y')), &grid, 4, 1);
+	make_and_attach_button(("tanh", "artanh", "z"), (ButtonID::Tanh, ButtonID::Artanh, ButtonID::Var('z')), &grid, 5, 1);
 	
-	make_and_attach_button(("π", "φ", "e"), (ButtonID::Var('π'), ButtonID::Var('φ'), ButtonID::Var('e')), &grid, 2, 2);
-	make_and_attach_button(("", "", ""), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 3, 2);
-	make_and_attach_button(("", "", ""), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 4, 2);
-	make_and_attach_button(("", "", ""), (ButtonID::Null, ButtonID::Null, ButtonID::Null), &grid, 5, 2);
+	make_and_attach_button(("π"  , "φ" , "e"), (ButtonID::Const('π'), ButtonID::Const('φ'), ButtonID::Const('e')), &grid, 2, 2);
+	make_and_attach_button(("x/y", ""  , "" ), (ButtonID::Frac, ButtonID::Null, ButtonID::Null), &grid, 3, 2);
+	make_and_attach_button(("eˣ" , "ln", "" ), (ButtonID::E   , ButtonID::Ln  , ButtonID::Null), &grid, 4, 2);
+	make_and_attach_button(("|x|", "x!", "" ), (ButtonID::Abs , ButtonID::Fact, ButtonID::Null), &grid, 5, 2);
 	
 	grid // Return
 }
@@ -235,14 +248,20 @@ fn make_and_attach_button(labels: (&'static str, &'static str, &'static str), id
 			GuiState::Shift  => ::get_editor().handle_button_click(ids_clone.1.clone()),
 			GuiState::Ctrl | GuiState::Store => ::get_editor().handle_button_click(ids_clone.2.clone()),
 		};
-	});
+	});update_button_attrib(&but, labels.2, &ids.2);
 	
 	but.connect_draw(move |widg, _| {
 		let but = Button::wrap_widget(widg.unwrap_widget());
 		match get_gui_state() {
-			GuiState::Normal    => { change_button_attrib(&but, labels.0, ids.0 != ButtonID::Null); },
-			GuiState::Shift     => { change_button_attrib(&but, labels.1, ids.1 != ButtonID::Null); },
-			GuiState::Ctrl | GuiState::Store => { change_button_attrib(&but, labels.2, ids.2 != ButtonID::Null); },
+			GuiState::Normal    => { update_button_attrib(&but, labels.0, &ids.0); },
+			GuiState::Shift     => { update_button_attrib(&but, labels.1, &ids.1); },
+			GuiState::Ctrl      => { update_button_attrib(&but, labels.2, &ids.2); },
+			GuiState::Store     =>
+				if let ButtonID::Var(_) = ids.2 {
+					update_button_attrib(&but, labels.2, &ids.2);
+				} else {
+					update_button_attrib(&but, "", &ButtonID::Null);
+				},
 		};
 		Inhibit(false)
 	});
@@ -250,12 +269,36 @@ fn make_and_attach_button(labels: (&'static str, &'static str, &'static str), id
 }
 
 // Only changes attributes passed to it when the current attributes differ
-fn change_button_attrib(but: &Button, label: &'static str, enabled: bool) {
-	if but.get_label() != Some(label.to_string()) {
+fn update_button_attrib(but: &Button, label: &'static str, id: &ButtonID) {
+	let but_label = but.get_label();
+	let label_string = label.to_string();
+	if but_label != Some(label_string) {
 		but.set_label(label);
 	}
+	let enabled = *id != ButtonID::Null;
 	if but.get_sensitive() != enabled {
 		but.set_sensitive(enabled);
+	}
+	let but_tooltip = but.get_tooltip_text();
+	let tooltip: Option<_> = match id {
+		&ButtonID::Var(var) | &ButtonID::Const(var) => {
+			let val = ::get_editor().vm.get_var(var);
+			if val != ::std::f64::NAN {
+				let var_str = format!("{}", val);
+				Some(var_str)
+			} else {
+				None
+			}
+		},
+		_ => None,
+	};
+	
+	if but_tooltip != tooltip {
+		if tooltip.is_some() {
+			but.set_tooltip_text(tooltip.unwrap().as_str());
+		} else {
+			but.set_has_tooltip(false);
+		}
 	}
 }
 
