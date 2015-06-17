@@ -1,6 +1,7 @@
 pub const CHAR_ADD: char = '+';
 pub const CHAR_SUB: char = '−';
-pub const CHAR_MUL: char = '×';
+pub const CHAR_MUL: char = '×'; // ×
+pub const CHAR_MUL_SIMPLE: char = '*';
 pub const CHAR_DIV: char = '÷';
 pub const CHAR_BOX: char = '□';
 pub const CHAR_HLBOX: char = '■';

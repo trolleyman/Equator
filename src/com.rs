@@ -92,6 +92,20 @@ impl Command {
 			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false,
 		}
 	}
+	/// If an implicit multiplication is performed if this command is on the left, and the other command is_automul_right()
+	pub fn is_left_automul(&self) -> bool {
+		match self {
+			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) | &Com::Func(_) | &Com::Root | &Com::ParenClose => true,
+			&Com::Add | &Com::Sub | &Com::Mul | &Com::Div | &Com::Pow | &Com::Comma | &Com::ParenOpen => false
+		}
+	}
+	/// If an implicit multiplication is performed if this command is on the right, and the other command is_automul_left()
+	pub fn is_right_automul(&self) -> bool {
+		match self {
+			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) | &Com::Func(_) | &Com::Root | &Com::ParenOpen => true,
+			&Com::Add | &Com::Sub | &Com::Mul | &Com::Div | &Com::Pow | &Com::Comma | &Com::ParenClose => false
+		}
+	}
 }
 
 /// Holds state
@@ -326,27 +340,43 @@ fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseErro
 	}
 	
 	if debug_print {
-		println!("({: ^25}, {: ^25})", "first", "second");
-		println!("(-------------------------,--------------------------)");
+		println!("");
+		println!("|{: ^25}, {: ^25}| should_automul", "first", "second");
+		println!("|-------------------------,--------------------------|");
 	}
 	
 	let mut i = 1;
 	while i < infix.len() {
 		let com_pair = (infix.get(i - 1).unwrap().clone(), infix.get(i).unwrap().clone());
 		if debug_print {
-			println!("({: <25}, {: <25}) i = {}", format!("{:?}", com_pair.0).as_str(), format!("{:?}", com_pair.1).as_str(), i);
+			println!("|{: <25}, {: <25}| {: <5} i = {}", format!("{:?}", com_pair.0).as_str(), format!("{:?}", com_pair.1).as_str(), should_automul(com_pair.0.clone(), com_pair.1.clone()).ok().unwrap_or(false), i);
 		}
-		i += match com_pair {
-			(Com::Var(_), Com::Var(_)) | (Com::Var(_), Com::Int(_)) | (Com::Int(_), Com::Var(_))
-				| (Com::Float(_), Com::Var(_)) | (Com::Var(_), Com::Float(_)) => { infix.insert(i, Com::Mul); 1 },
-			_ => { 0 }
-		};
 		
+		match should_automul(com_pair.0, com_pair.1) {
+			Ok(true) => {
+				infix.insert(i, Com::Mul);
+				i += 1;
+			},
+			Ok(false) => {},
+			Err(e) => return Err(e),
+		}
 		i += 1;
 	}
 	
 	// Check for errors
 	Ok(())
+}
+fn should_automul(left: Command, right: Command) -> Result<bool, ParseError> {
+	if right == Com::ParenOpen { // TODO: Add some more cases here
+		if let Com::Func(_) = left {
+			return Ok(false);
+		} else if left == Com::Root {
+			return Ok(false);
+		} else if left == Com::Comma {
+			return Err(SyntaxError);
+		}
+	}
+	Ok(left.is_left_automul() && right.is_right_automul())
 }
 
 fn parse_num_buf(num_buf: &str) -> Result<Command, ParseError> {
@@ -452,7 +482,7 @@ pub fn commands_to_string(coms: &[Command], spaces: bool) -> String {
 			&Com::Float(ref f) => { let _ = write!(s, "{}", f); },
 			&Com::Add => s.push(CHAR_ADD),
 			&Com::Sub => s.push(CHAR_SUB),
-			&Com::Mul => s.push(CHAR_MUL),
+			&Com::Mul => s.push(CHAR_MUL_SIMPLE),
 			&Com::Div => s.push(CHAR_DIV),
 			&Com::Pow => s.push_str("^"),
 			&Com::Func(ref func) => { let _ = write!(s, "{}", *func); },
