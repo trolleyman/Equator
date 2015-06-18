@@ -73,6 +73,7 @@ pub fn init_gui() {
 	// Get controls
 	let main_grid = Grid::new().unwrap();    // This is the grid that holds all of the controls,
 	main_grid.set_row_spacing(5);            // the buttons on the bottom and the drawing area on the top
+	main_grid.set_column_spacing(5);
 	main_grid.set_vexpand(true);
 	main_grid.set_hexpand(true);
 	
@@ -90,6 +91,11 @@ pub fn init_gui() {
 		da.set_can_focus(true);
 		da.grab_focus();
 		da_frame.add(&da);
+	}
+	
+	let var_frame = Frame::new(Some("Variables")).unwrap();
+	{
+		// Add a bunch of variable controls
 	}
 	
 	let button_grid = get_button_grid();     // This is the 'keypad'
@@ -125,7 +131,8 @@ pub fn init_gui() {
 	
 	// Add
 	main_grid.attach(&da_frame   , 0, 0, 1, 1);
-	main_grid.attach(&button_grid, 0, 1, 1, 1);
+	main_grid.attach(&var_frame  , 1, 0, 1, 1);
+	main_grid.attach(&button_grid, 0, 1, 2, 1);
 	
 	win.add(&main_grid);
 	//da_frame.grab_focus();
