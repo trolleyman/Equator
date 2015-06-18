@@ -9,8 +9,6 @@ use gtk::traits::*;
 use gtk::{Window, WindowType, WindowPosition};
 use gtk::signal::Inhibit;
 
-use edit::Editor;
-
 use std::mem::transmute;
 
 pub mod vis;
@@ -22,13 +20,13 @@ pub mod com;
 pub mod err;
 pub mod consts;
 
-static mut g_editor: *mut Editor = 0 as *mut Editor;
+static mut g_editor: *mut edit::Editor = 0 as *mut edit::Editor;
 static mut g_window: *mut Window = 0 as *mut Window;
 
 pub fn get_window() -> &'static mut Window {
 	unsafe { transmute(g_window) }
 }
-pub fn get_editor() -> &'static mut Editor {
+pub fn get_editor() -> &'static mut edit::Editor {
 	unsafe { transmute(g_editor) }
 }
 
@@ -38,7 +36,7 @@ fn main() {
 		_ => {}
 	}
 	
-	let mut temp_edit = Editor::new();
+	let mut temp_edit = edit::Editor::new();
 	unsafe {
 		g_editor = &mut temp_edit;
 	}

@@ -63,8 +63,21 @@ impl FuncType {
 			&Arcosh => v.acosh(),
 			&Artanh => v.atanh(),
 			&Ln     => v.ln(),
-			&Fact   => v.fact(),
+			&Fact   => factorial(v),
 			&Abs    => v.abs(),
 		}
 	}
+}
+
+/// Warning: NOT the gamma function - just floors the float and then performs some stuff.
+fn factorial(f: f64) -> f64 {
+	if f < 0.0 {
+		::std::f64::NAN
+	} else if f.floor() == 0.0 {
+		1.0
+	} else if !(f.floor() > 0.0) {
+		::std::f64::NAN
+	} else {
+		factorial(f - 1.0) * f
+	}	
 }

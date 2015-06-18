@@ -138,9 +138,11 @@ fn path_editor(c: &Context, edit: &Editor) -> (Extent, f64) {
 	let ret = edit.vm.get_last_result();
 	let s = match ret {
 		Ok(val) => {
-			let mut full_s = format!("{}", (val * 100000.0).round() / 100000.0);
+			const DP: usize = 7;
+			let fact: f64 = (10.0f64).powi(DP as i32);
+			let mut full_s = format!("{}", (val * fact).round() / fact);
 			match full_s.find('.') {
-				Some(i) => if i + 5 <= full_s.len() { full_s.truncate(i + 5) },
+				Some(i) => if i + DP + 1 <= full_s.len() { full_s.truncate(i + DP + 1) },
 				None => {}
 			}
 			full_s
@@ -172,9 +174,8 @@ fn get_descent(c: &Context) -> f64 {
 /// Paths an expression given onto the context given. Takes into account the current position of the context and the position of the cursor given.
 /// prev_expr_extent is the extent of the token last pathed, before the current function.
 fn path_expr(c: &Context, expr: VExprRef, cursor: Cursor, prev_tok_extent: &Option<Extent>) -> Extent {
-	let cursor_in_ex: bool = unsafe {
-		expr.as_unsafe_cell().get() == cursor.ex.as_unsafe_cell().get()
-	};
+	let cursor_in_ex: bool = is_equal_reference(&expr, &cursor.ex);
+	
 	if !c.has_current_point() {
 		c.move_to(0.0, 0.0);
 	}
@@ -255,10 +256,10 @@ fn path_expr(c: &Context, expr: VExprRef, cursor: Cursor, prev_tok_extent: &Opti
 				prev_extent = exp_extents;
 			},
 			&VToken::Func(FuncType::Sqrt, ref inner_expr) => {
-				prev_extent = path_root(c, inner_expr.clone(), None, cursor.clone(), &prev_extent);
+				prev_extent = path_root(c, inner_expr.clone(), None, cursor.clone());
 			},
 			&VToken::Root(ref degree_ex, ref inner_expr) => {
-				prev_extent = path_root(c, inner_expr.clone(), Some(degree_ex.clone()), cursor.clone(), &prev_extent);
+				prev_extent = path_root(c, inner_expr.clone(), Some(degree_ex.clone()), cursor.clone());
 			},
 			&VToken::Func(ref func_type, ref inner_expr) => {
 				// Paths the beginning of the function, the " sin("
@@ -334,10 +335,10 @@ fn path_str(c: &Context, s: &str) -> Extent {
 	let (current_x, current_y) = c.get_current_point();
 	
 	let full_extent = Extent{x0:current_x, y0:current_y, x1:current_x, y1:current_y};
-	path_expr(c, ex.to_ref(), Cursor{ex:cursor_ex, pos:0}, &Some(full_extent))
+	path_expr(c, ex.to_ref(), Cursor::with_ex(cursor_ex), &Some(full_extent))
 }
 
-fn path_root(c: &Context, inner: VExprRef, degree: Option<VExprRef>, cursor: Cursor, prev_tok_extent: &Extent) -> Extent {
+fn path_root(c: &Context, inner: VExprRef, degree: Option<VExprRef>, cursor: Cursor) -> Extent {
 	// Get the extents of the new expression.
 	let cursor_rect_set_before_root = is_cursor_set();
 	c.save();
@@ -463,7 +464,7 @@ fn path_frac(c: &Context, num: VExprRef, den: VExprRef, cursor: Cursor, prev_tok
 	c.save();
 	let orig_path = c.copy_path();
 	let (orig_x, orig_y) = c.get_current_point();
-	let (x, y) = (orig_x, prev_tok_extent.y0 + prev_tok_extent.h()/2.0);
+	let (x, y) = (orig_x, prev_tok_extent.y0 + prev_tok_extent.h()/2.0 + 5.0*get_scale(c));
 	
 	c.new_path();
 	let cursor_set_before_num = is_cursor_set();
@@ -482,6 +483,8 @@ fn path_frac(c: &Context, num: VExprRef, den: VExprRef, cursor: Cursor, prev_tok
 	let (mut den_trans_x, mut den_trans_y) = align(&den_extent, x + 2.0 + line_w/2.0, y + 1.0, BotMid);
 	num_trans_x = num_trans_x.floor();
 	num_trans_y = num_trans_y.floor();
+	den_trans_x = den_trans_x.floor();
+	den_trans_y = den_trans_y.floor();
 	num_extent.translate(num_trans_x, num_trans_y);
 	den_extent.translate(den_trans_x, den_trans_y);
 	if !cursor_set_before_num && cursor_set_after_num {
@@ -491,10 +494,12 @@ fn path_frac(c: &Context, num: VExprRef, den: VExprRef, cursor: Cursor, prev_tok
 		translate_cursor(den_trans_x, den_trans_y)
 	}
 	
+	let line_extent = Extent{x0:x + 2.0, y0:y-1.0, x1:x + line_w, y1:y};
+	let full_extent = num_extent.enclosing(&den_extent).enclosing(&line_extent);
+	
 	c.new_path();
 	c.save();
 	c.append_path(&orig_path);
-	let line_extent = Extent{x0:x + 2.0, y0:y-1.0, x1:x + line_w, y1:y};
 	c.rectangle(line_extent.x0, line_extent.y0, line_extent.w(), line_extent.h());
 	c.translate(num_trans_x, num_trans_y);
 	c.append_path(&num_path);
@@ -502,7 +507,6 @@ fn path_frac(c: &Context, num: VExprRef, den: VExprRef, cursor: Cursor, prev_tok
 	c.translate(den_trans_x, den_trans_y);
 	c.append_path(&den_path);
 	c.restore();
-	let full_extent = num_extent.enclosing(&den_extent).enclosing(&line_extent);
 	c.move_to(orig_x + line_w + 4.0, orig_y);
 	full_extent
 }

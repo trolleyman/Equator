@@ -157,7 +157,7 @@ impl VM {
 		match self.execute_all(coms) {
 			Ok(_) => {},
 			Err(e) => {
-				self.last_result = Err(e);
+				self.last_result = Err(e.clone());
 				return Err(e);
 			}
 		}
@@ -168,12 +168,12 @@ impl VM {
 		} else {
 			Ok(self.stack[0])
 		};
-		self.last_result = res;
+		self.last_result = res.clone();
 		res
 	}
 	#[inline(always)]
 	pub fn get_last_result(&self) -> Result<f64, ParseError> {
-		self.last_result
+		self.last_result.clone()
 	}
 	pub fn execute_all(&mut self, coms: &[Command]) -> Result<(), ParseError> {
 		let debug_print: bool = unsafe { debug_print_stage3 };

@@ -2,9 +2,11 @@ use	std::rc::Rc;
 use std::rc::Weak;
 use std::cell::RefCell;
 use std::fmt::{self, Display, Formatter};
+use std::fmt::Write;
 
 use self::VToken::*;
 
+use edit;
 use consts::*;
 use func::FuncType;
 
@@ -55,7 +57,7 @@ impl VToken {
 
 pub type VExprRef = Rc<RefCell<VExpr>>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct VExpr {
 	pub tokens: Vec<VToken>,
 	pub parent: Option<Weak<RefCell<VExpr>>>,
@@ -74,9 +76,93 @@ impl VExpr {
 	pub fn to_ref(&self) -> Rc<RefCell<VExpr>>  {
 		Rc::new(RefCell::new((*self).clone()))
 	}
-}
-impl Clone for VExpr {
-	fn clone(&self) -> Self {
-		VExpr{tokens: self.tokens.clone(), parent: self.parent.clone()}
+	pub fn get_parent(&self) -> Option<VExprRef> {
+		match self.parent {
+			Some(ref weak) => weak.upgrade(),
+			None => None
+		}
 	}
+}
+
+pub fn display_vexpr<T: Write>(ex: VExprRef, cursor_opt: &Option<edit::Cursor>, buf: &mut T) -> fmt::Result {
+	let cursor = match cursor_opt {
+		&Some(ref c) => c.clone(),
+		&None        => edit::Cursor::new()
+	};
+	let cursor_in_ex: bool = is_equal_reference(&ex, &cursor.ex);
+	
+	let len = ex.borrow().tokens.len();
+	for i in 0..len {
+		if cursor_in_ex && cursor.pos == i {
+			// Print cursor
+			try!(write!(buf, "|"));
+		}
+		
+		match ex.borrow().tokens[i].clone() {
+			VToken::Digit(c) | VToken::Char(c) => {
+				try!(write!(buf, "{}", c));
+			},
+			VToken::Op(op) => {
+				try!(write!(buf, "{}", op));
+			},
+			VToken::Pow(inner_ex_ref) => {
+				// Recursive stuff yay!
+				try!(write!(buf, "^("));
+				try!(display_vexpr(inner_ex_ref, &Some(cursor.clone()), buf));
+				try!(write!(buf, ")"));
+			},
+			VToken::Func(func_type, inner_ex_ref) => {
+				try!(write!(buf, " {}(", func_type));
+				try!(display_vexpr(inner_ex_ref, &Some(cursor.clone()), buf));
+				try!(write!(buf, ")"));
+			}
+			VToken::Root(degree_ex, inner_ex) => {
+				try!(write!(buf, " root("));
+				try!(display_vexpr(degree_ex, &Some(cursor.clone()), buf));
+				try!(write!(buf, ", "));
+				try!(display_vexpr(inner_ex, &Some(cursor.clone()), buf));
+				try!(write!(buf, ")"));
+			}
+			VToken::Frac(num_ex, den_ex) => {
+				try!(write!(buf, "(("));
+				try!(display_vexpr(num_ex, &Some(cursor.clone()), buf));
+				try!(write!(buf, ")÷("));
+				try!(display_vexpr(den_ex, &Some(cursor.clone()), buf));
+				try!(write!(buf, "))"));
+			}
+		}
+	}
+
+	if cursor_in_ex && cursor.pos == ex.borrow().tokens.len() {
+		// Print cursor
+		if len == 0 {
+			try!(write!(buf, "{}", CHAR_HLBOX));
+		} else {
+			try!(write!(buf, "|"));
+		}
+	} else if len == 0 {
+		try!(write!(buf, "{}", CHAR_BOX));
+	}
+	Ok(())
+}
+
+pub fn is_equal_reference<T>(ref1: &Rc<RefCell<T>>, ref2: &Rc<RefCell<T>>) -> bool {
+	unsafe { ref1.as_unsafe_cell().get() == ref2.as_unsafe_cell().get() }
+}
+
+/// Tries to find `needle` in `hayastack`.
+/// Gives the token position and the position in that token.
+pub fn find_vexpr(needle: &VExprRef, haystack: &VExprRef) -> Option<(usize, usize)> {
+	let mut i = 0;
+	for tok in haystack.borrow().tokens.iter() {
+		let mut j = 0;
+		for ex_inner in tok.get_inner_expr().iter() {
+			if is_equal_reference(&ex_inner, &needle) {
+				return Some((i, j));
+			}
+			j += 1;
+		}
+		i += 1;
+	}
+	None
 }
