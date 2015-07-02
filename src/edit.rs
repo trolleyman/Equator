@@ -4,9 +4,10 @@ use std::fmt;
 
 use gdk::{key, EventKey, self};
 
-use consts::*;
+use consts::prelude::*;
 use gui;
 use com;
+use render;
 use err::*;
 use vis::*;
 use func::*;
@@ -15,6 +16,8 @@ pub struct Editor {
 	pub root_ex: VExprRef,
 	pub cursor: Cursor,
 	pub vm: com::VM,
+	pub extents: render::Extents,
+	pub highlit_extents: Vec<render::Extent>,
 }
 
 #[derive(Clone)]
@@ -27,11 +30,11 @@ impl Cursor {
 	pub fn new() -> Cursor {
 		Cursor{ex:VExpr::new_ref(), pos:0}
 	}
+	pub fn new_ex(ex:VExprRef, pos:usize) -> Cursor {
+		Cursor{ex:ex, pos:pos}
+	}
 	pub fn with_ex(ex:VExprRef) -> Cursor {
 		Cursor{ex:ex, pos:0}
-	}
-	pub fn with_ex_and_pos(ex:VExprRef, pos:usize) -> Cursor {
-		Cursor{ex:ex, pos:pos}
 	}
 	
 	/// Performs a delete at `self.pos`. If successful, return true.
@@ -250,7 +253,7 @@ impl Editor {
 		Editor::with_expression(ex, 0)
 	}
 	pub fn with_expression(ex: VExprRef, pos: usize) -> Self {
-		Editor{ root_ex:ex.clone(), cursor:Cursor::with_ex_and_pos(ex, pos), vm:com::VM::new()}
+		Editor{ root_ex: ex.clone(), cursor: Cursor::new_ex(ex, pos), vm: com::VM::new(), extents: render::Extents::new(), highlit_extents: Vec::new() }
 	}
 	
 	/// Handles the keypress given, inserting the key pressed at the cursor's position.
@@ -272,18 +275,18 @@ impl Editor {
 			},
 			key::F1 => unsafe {
 				com::debug_print_stage1 = !com::debug_print_stage1;
-				if com::debug_print_stage1 { println!("command debug printing stage 1 on."); 
-				} else {                     println!("command debug printing stage 1 off."); }
+				if com::debug_print_stage1 { println!("command debug printing stage 1 (expr->infix) on."); 
+				} else {                     println!("command debug printing stage 1 (expr->infix) off."); }
 			},
 			key::F2 => unsafe {
 				com::debug_print_stage2 = !com::debug_print_stage2;
-				if com::debug_print_stage2 { println!("command debug printing stage 2 on."); 
-				} else {                     println!("command debug printing stage 2 off."); }
+				if com::debug_print_stage2 { println!("command debug printing stage 2 (infix->postfix) on."); 
+				} else {                     println!("command debug printing stage 2 (infix->postfix) off."); }
 			},
 			key::F3 => unsafe {
 				com::debug_print_stage3 = !com::debug_print_stage3;
-				if com::debug_print_stage3 { println!("command debug printing stage 3 on."); 
-				} else {                     println!("command debug printing stage 3 off."); }
+				if com::debug_print_stage3 { println!("command debug printing stage 3 (calculation) on."); 
+				} else {                     println!("command debug printing stage 3 (calculation) off."); }
 			},
 			key::Delete => {self.cursor.delete();},
 			key::BackSpace => {self.cursor.backspace();},
@@ -319,6 +322,31 @@ impl Editor {
 				Ok(())
 			}
 		}
+	}
+	
+	/// Handles a click at the position (x, y), relative the the top left corner of the DrawingArea.
+	/// Returns if the expression should be updated.
+	pub fn handle_click(&mut self, x: f64, y: f64) -> bool {
+		let mut dirty = self.highlit_extents.len() > 0;
+		self.highlit_extents.clear();
+		let mut sel_area = INFINITY;
+		let mut selection = self.cursor.clone();
+		
+		for &(ex, ref cur) in self.extents.extents.iter() {
+			if ex.contains(x, y) {
+				dirty = true;
+				//self.highlit_extents.push(ex);
+				let ex_area = ex.w() * ex.h();
+				if ex_area < sel_area {
+					sel_area = ex_area;
+					selection = cur.clone();
+				}
+			}
+		}
+		
+		self.cursor = selection.clone();
+		
+		dirty
 	}
 	
 	/// Returns true if the button press has been handled.

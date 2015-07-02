@@ -120,9 +120,9 @@ pub struct VM {
 impl VM {
 	pub fn new() -> VM {
 		let mut hm = HashMap::new();
-		hm.insert('π', M_PI);
-		hm.insert('e', M_E);
-		hm.insert('φ', M_GOLDEN_RATIO);
+		hm.insert('π', PI);
+		hm.insert('e', E);
+		hm.insert('φ', GOLDEN_RATIO);
 		VM{stack:Vec::new(), vars:hm, num:0, last_result:Err(LastResultNotInitialized)}
 	}
 	#[inline(always)]
@@ -178,22 +178,34 @@ impl VM {
 	pub fn execute_all(&mut self, coms: &[Command]) -> Result<(), ParseError> {
 		let debug_print: bool = unsafe { debug_print_stage3 };
 		
+		if debug_print {
+			let mut vars_str = String::with_capacity(16);
+			for (k, v) in self.vars.iter() {
+				let _ = write!(vars_str, "{}:{} ", k, v);
+			}
+			vars_str.trim();
+			println!("vars: {}", vars_str);
+			println!("{: ^12} | {}", "command", "stack");
+		}
+		
 		for com in coms.iter() {
+			try!(self.execute(com));
 			if debug_print {
-				let mut vars_str = String::with_capacity(16);
-				for (k, v) in self.vars.iter() {
-					let _ = write!(vars_str, "{}:{} ", k, v);
-				}
-				vars_str.trim();
 				let mut stack_str = String::with_capacity(32);
 				for v in self.stack.iter() {
 					let _ = write!(stack_str, "{} ", v);
 				}
 				stack_str.trim();
 				
-				println!("{: <20} | {: <12} | {}", vars_str, format!("{:?}", com), stack_str);
+				println!("{: <12} | {}", format!("{:?}", com), stack_str);
 			}
-			try!(self.execute(com));
+		}
+		if debug_print {
+			let mut stack_str = String::with_capacity(32);
+			for v in self.stack.iter() {
+				let _ = write!(stack_str, "{} ", v);
+			}
+			stack_str.trim();
 		}
 		Ok(())
 	}

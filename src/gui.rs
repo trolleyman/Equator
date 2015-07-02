@@ -4,7 +4,7 @@ use gtk::widgets::*;
 use gtk::{Orientation, ReliefStyle};
 use gtk_sys;
 
-use gdk::{key, self};
+use gdk::{key, self, EventType};
 
 use cairo::Context;
 
@@ -46,9 +46,13 @@ static mut ctrl_btn_ptr : *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget
 static mut store_btn_ptr: *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget;
 
 pub fn dirty_expression() {
+	println!("=== DIRTY EXPRESSION ===");
 	::get_window().queue_draw();
 	::get_editor().print();
 	::get_editor().vm.clear_stack();
+	::get_editor().extents.reset();
+	::get_editor().highlit_extents.clear();
+	
 	let res = match expr_to_commands(::get_editor().root_ex.clone()) {
 		Ok(commands) => ::get_editor().vm.get_result(&commands),
 		Err(e) => { println!("error: {}", e); return; },
@@ -60,7 +64,9 @@ pub fn dirty_expression() {
 }
 
 pub fn dirty_gui() {
+	println!("=== DIRTY GUI ===");
 	::get_window().queue_draw();
+	::get_editor().extents.reset();
 }
 
 pub fn init_gui() {
@@ -79,6 +85,17 @@ pub fn init_gui() {
 	
 	let da_frame = Frame::new(None).unwrap();
 	{
+		let eb = EventBox::new().unwrap();
+		eb.connect_button_press_event(|_, e| {
+			if e._type == EventType::ButtonPress {
+				println!("mouse click: ({}, {})", e.x, e.y);
+				if ::get_editor().handle_click(e.x, e.y) {
+					dirty_gui();
+				}
+			}
+			
+			Inhibit(false)
+		});
 		let da = DrawingArea::new().unwrap();    // This is the main drawing area that the current equation is
 		da.set_vexpand(true);                    // drawn to. Has a variable size.
 		da.set_hexpand(true);
@@ -90,7 +107,8 @@ pub fn init_gui() {
 		});
 		da.set_can_focus(true);
 		da.grab_focus();
-		da_frame.add(&da);
+		eb.add(&da);
+		da_frame.add(&eb);
 	}
 	
 	let var_frame = Frame::new(Some("Variables")).unwrap();
@@ -158,10 +176,16 @@ fn get_button_grid() -> Grid {
 	{
 		let rb_radians = RadioButton::new_with_label("Radians").unwrap();
 		rb_radians.set_focus_on_click(false); rb_radians.set_relief(ReliefStyle::None);
+		rb_radians.connect_clicked(|but| { if ToggleButton::wrap_widget(but.unwrap_widget()).get_active() { set_trig_mode(TrigMode::Radians); } });
+		
 		let rb_degrees = RadioButton::new_with_label("Degrees").unwrap(); rb_degrees.join(&rb_radians);
 		rb_degrees.set_focus_on_click(false); rb_degrees.set_relief(ReliefStyle::None);
+		rb_degrees.connect_clicked(|but| { if ToggleButton::wrap_widget(but.unwrap_widget()).get_active() { set_trig_mode(TrigMode::Degrees); } });
+		
 		let rb_gradians = RadioButton::new_with_label("Grads").unwrap(); rb_gradians.join(&rb_radians);
 		rb_gradians.set_focus_on_click(false); rb_gradians.set_relief(ReliefStyle::None);
+		rb_gradians.connect_clicked(|but| { if ToggleButton::wrap_widget(but.unwrap_widget()).get_active() { set_trig_mode(TrigMode::Gradians); } });
+		
 		let button_box = ButtonBox::new(Orientation::Vertical).unwrap(); //68, 23
 		button_box.add(&rb_radians);
 		button_box.add(&rb_degrees);
@@ -334,5 +358,23 @@ pub fn set_gui_state(state: GuiState) {
 			GuiState::Store  => { shift_btn.set_active(false); ctrl_btn.set_active(true ); store_btn.set_active(true ); },
 		}
 		dirty_gui();
+	}
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrigMode {
+	Radians,
+	Degrees,
+	Gradians
+}
+static mut trig_mode: TrigMode = TrigMode::Radians;
+
+pub fn get_trig_mode() -> TrigMode {
+	unsafe { trig_mode }
+}
+fn set_trig_mode(new_mode: TrigMode) {
+	unsafe {
+		trig_mode = new_mode;
+		dirty_expression();
 	}
 }
