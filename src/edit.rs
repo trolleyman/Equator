@@ -12,15 +12,7 @@ use err::*;
 use vis::*;
 use func::*;
 
-pub struct Editor {
-	pub root_ex: VExprRef,
-	pub cursor: Cursor,
-	pub vm: com::VM,
-	pub extents: render::Extents,
-	pub highlit_extents: Vec<render::Extent>,
-}
-
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Cursor {
 	pub ex: VExprRef,
 	pub pos: usize,
@@ -247,13 +239,23 @@ impl Cursor {
 	}
 }
 
+pub struct Editor {
+	pub root_ex: VExprRef,
+	pub cursor: Cursor,
+	pub hitboxes: Box<[(render::Extent, Cursor)]>,
+}
+
 impl Editor {
 	pub fn new() -> Self {
 		let ex: VExprRef = VExpr::new_ref();
 		Editor::with_expression(ex, 0)
 	}
 	pub fn with_expression(ex: VExprRef, pos: usize) -> Self {
-		Editor{ root_ex: ex.clone(), cursor: Cursor::new_ex(ex, pos), vm: com::VM::new(), extents: render::Extents::new(), highlit_extents: Vec::new() }
+		Editor{ root_ex: ex.clone(), cursor: Cursor::new_ex(ex, pos), hitboxes: box [] }
+	}
+	
+	pub fn update_hitboxes(&mut self, new_hbs: Box<[(render::Extent, Cursor)]>) {
+		self.hitboxes = new_hbs;
 	}
 	
 	/// Handles the keypress given, inserting the key pressed at the cursor's position.
@@ -311,7 +313,7 @@ impl Editor {
 				// If there is a VToken::Pow(_) just before the token, don't insert it.
 				let mut cursor_ex = self.cursor.ex.borrow_mut();
 				if self.cursor.pos != 0 && match cursor_ex.tokens.get(cursor_ex.tokens.len() - 1) { Some(&VToken::Pow(_)) => true, _ => false } {
-					Err(IllegalToken(tok, self.cursor.ex.clone(), self.cursor.pos))
+					Err(IllegalToken(tok, self.cursor.clone()))
 				} else {
 					cursor_ex.tokens.insert(self.cursor.pos, tok);
 					Ok(())
@@ -327,12 +329,11 @@ impl Editor {
 	/// Handles a click at the position (x, y), relative the the top left corner of the DrawingArea.
 	/// Returns if the expression should be updated.
 	pub fn handle_click(&mut self, x: f64, y: f64) -> bool {
-		let mut dirty = self.highlit_extents.len() > 0;
-		self.highlit_extents.clear();
 		let mut sel_area = INFINITY;
+		let mut dirty = false;
 		let mut selection = self.cursor.clone();
 		
-		for &(ex, ref cur) in self.extents.extents.iter() {
+		for &(ex, ref cur) in self.hitboxes.iter() {
 			if ex.contains(x, y) {
 				dirty = true;
 				//self.highlit_extents.push(ex);
@@ -479,9 +480,9 @@ impl Editor {
 			},
 			gui::ButtonID::Var(id) => {
 				if gui::get_gui_state() == gui::GuiState::Store {
-					let res = self.vm.get_last_result();
+					let res = ::get_vm().get_last_result();
 					if res.is_ok() {
-						self.vm.set_var(id, res.ok().unwrap());
+						::get_vm().set_var(id, res.ok().unwrap());
 					}
 					gui::set_gui_state(gui::GuiState::Normal);
 				} else {
@@ -535,8 +536,8 @@ impl Editor {
 			'a' ... 'z' | 'A' ... 'Z' => {
 				if gui::get_gui_state() == gui::GuiState::Store && c != 'e' {
 					// Store the last result in the variable
-					match self.vm.get_last_result() {
-						Ok(val) => self.vm.set_var(c, val),
+					match ::get_vm().get_last_result() {
+						Ok(val) => ::get_vm().set_var(c, val),
 						Err(_) => {},
 					}
 					gui::set_gui_state(gui::GuiState::Normal);
