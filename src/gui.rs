@@ -9,8 +9,7 @@ use gdk::{key, self, EventType};
 use cairo::Context;
 
 use edit::Editor;
-use render::render;
-use render::Extent;
+use render::{Render, Extent};
 use com::*;
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
@@ -49,13 +48,11 @@ pub fn dirty_expression() {
 	println!("=== DIRTY EXPRESSION ===");
 	::get_window().queue_draw();
 	::get_editor().print();
-	::get_editor().vm.clear_stack();
-	::get_editor().extents.reset();
-	::get_editor().highlit_extents.clear();
+	::get_vm().clear_stack();
 	
 	let res = match expr_to_commands(::get_editor().root_ex.clone()) {
-		Ok(commands) => ::get_editor().vm.get_result(&commands),
-		Err(e) => { println!("error: {}", e); return; },
+		Ok(commands) => ::get_vm().get_result(&commands),
+		Err(e) => { println!("parse error: {}", e); return; },
 	};
 	match res {
 		Ok(v)  => println!("result : {}", v),
@@ -66,7 +63,6 @@ pub fn dirty_expression() {
 pub fn dirty_gui() {
 	println!("=== DIRTY GUI ===");
 	::get_window().queue_draw();
-	::get_editor().extents.reset();
 }
 
 pub fn init_gui() {
@@ -101,7 +97,12 @@ pub fn init_gui() {
 		da.set_hexpand(true);
 		//da.set_size_request(500, 500);
 		da.connect_draw(|w: Widget, c: Context| {
-			render(&w, &c);
+			let (alloc_w, alloc_h) = (w.get_allocated_width(), w.get_allocated_height());
+			
+			let mut ren = Render::new(&c, ::get_editor());
+			ren.render(alloc_w as f64, alloc_h as f64);
+			
+			::get_editor().update_hitboxes(ren.exts.hitboxes.into_boxed_slice());
 			
 			Inhibit(false)
 		});
@@ -310,11 +311,11 @@ fn update_button_attrib(but: &Button, label: &'static str, id: &ButtonID) {
 	if but.get_sensitive() != enabled {
 		but.set_sensitive(enabled);
 	}
-	let but_tooltip = but.get_tooltip_text();
+	/*let but_tooltip = but.get_tooltip_text();
 	let tooltip: Option<_> = match id {
 		&ButtonID::Var(var) | &ButtonID::Const(var) => {
 			let val = ::get_editor().vm.get_var(var);
-			if val != ::std::f64::NAN {
+			match val {
 				let var_str = format!("{}", val);
 				Some(var_str)
 			} else {
@@ -330,7 +331,7 @@ fn update_button_attrib(but: &Button, label: &'static str, id: &ButtonID) {
 		} else {
 			but.set_has_tooltip(false);
 		}
-	}
+	}*/
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

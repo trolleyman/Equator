@@ -30,6 +30,7 @@ impl Display for OpType {
 
 #[derive(Clone, Debug)]
 pub enum VToken {
+	Space,
 	Char(char),
 	Digit(char),
 	Op(OpType),
@@ -43,14 +44,14 @@ impl VToken {
 		match self {
 			&Pow(ref ex) | &Func(_, ref ex) => box [ex.clone()],
 			&Root(ref ex1, ref ex2) | &Frac(ref ex1, ref ex2) => box [ex1.clone(), ex2.clone()],
-			&Op(_) | &Digit(_) | &Char(_) => box []
+			&Op(_) | &Digit(_) | &Char(_) | &Space => box []
 		}
 	}
 	
 	pub fn has_inner_expr(&self) -> bool {
 		match self {
 			&Pow(_) | &Func(_, _) | &Root(_, _) | &Frac(_, _) => true,
-			&Op(_) | &Digit(_) | &Char(_) => false
+			&Op(_) | &Digit(_) | &Char(_) | &Space => false
 		}
 	}
 }
@@ -99,6 +100,9 @@ pub fn display_vexpr<T: Write>(ex: VExprRef, cursor_opt: &Option<edit::Cursor>, 
 		}
 		
 		match ex.borrow().tokens[i].clone() {
+			VToken::Space => {
+				try!(write!(buf, "{}", CHAR_BOX));
+			},
 			VToken::Digit(c) | VToken::Char(c) => {
 				try!(write!(buf, "{}", c));
 			},

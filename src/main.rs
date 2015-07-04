@@ -20,14 +20,18 @@ pub mod com;
 pub mod err;
 pub mod consts;
 
-static mut g_editor: *mut edit::Editor = 0 as *mut edit::Editor;
 static mut g_window: *mut Window = 0 as *mut Window;
+static mut g_editor: *mut edit::Editor = 0 as *mut edit::Editor;
+static mut g_vm    : *mut com::VM = 0 as *mut com::VM;
 
 pub fn get_window() -> &'static mut Window {
 	unsafe { transmute(g_window) }
 }
 pub fn get_editor() -> &'static mut edit::Editor {
 	unsafe { transmute(g_editor) }
+}
+pub fn get_vm() -> &'static mut com::VM {
+	unsafe { transmute(g_vm) }
 }
 
 fn main() {
@@ -56,6 +60,11 @@ fn main() {
 			gtk::main_quit();
 			Inhibit(true)
 		});
+	}
+	
+	let mut temp_vm = com::VM::new();
+	unsafe {
+		g_vm = &mut temp_vm;
 	}
 	
 	gui::init_gui();
