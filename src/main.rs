@@ -19,6 +19,7 @@ pub mod render;
 pub mod com;
 pub mod err;
 pub mod consts;
+pub mod num;
 
 static mut g_window: *mut Window = 0 as *mut Window;
 static mut g_editor: *mut edit::Editor = 0 as *mut edit::Editor;
@@ -35,6 +36,9 @@ pub fn get_vm() -> &'static mut com::VM {
 }
 
 fn main() {
+	//num::num_test();
+	//return;
+	
 	match gtk::init() {
 		Err(_) => panic!("GTK could not be initialized"),
 		_ => {}
