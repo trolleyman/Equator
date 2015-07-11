@@ -8,7 +8,7 @@ Type with your keyboard or press the buttons in the app to insert the mathematic
 Variables can be assigned to by pressing the STORE key and pressing a button in the app or a variable on your keyboard. The variable's value will be set to the right hand side of the equation. Constants such as pi (π), e and the golden ratio (φ) cannot be assigned to.
 
 ## Todo:
-Status | Description
+Status | Task
 ------ | -------------
 Todo | Add more functions -- log/ln
 In progress | ** Change number system to base 10. This allows for more accurate calculations, as base 10 is used more in everyday life **

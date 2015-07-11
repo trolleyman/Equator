@@ -12,7 +12,7 @@ use edit::Editor;
 use render::{Render, Extent};
 use com::*;
 
-#[derive(PartialEq, Eq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum ButtonID {
 	Null,
 	Pow,
