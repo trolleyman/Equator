@@ -11,7 +11,7 @@ use edit;
 mod Com {
 	pub use super::Command::*;
 }
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Command {
 	Var(char), // Pushes variable with char identifier to the stack
 	Int(i64), // Pushes integer literal to the stack
@@ -130,31 +130,31 @@ impl VM {
 		hm.insert('φ', GOLDEN_RATIO);
 		VM{stack:Vec::new(), vars:hm, num:0, last_result:Err(LastResultNotInitialized)}
 	}
-	#[inline(always)]
+	#[inline]
 	pub fn push(&mut self, v: f64) {
 		self.stack.push(v);
 	}
-	#[inline(always)]
+	#[inline]
 	pub fn pop(&mut self) -> Option<f64> {
 		self.stack.pop()
 	}
-	#[inline(always)]
+	#[inline]
 	pub fn peek(&mut self) -> Option<f64> {
 		self.stack.get(0).map(|f| {*f})
 	}
-	#[inline(always)]
+	#[inline]
 	pub fn set_var(&mut self, id: char, v: f64) {
 		self.vars.insert(id, v);
 	}
-	#[inline(always)]
+	#[inline]
 	pub fn get_var(&mut self, id: char) -> Option<f64> {
 		self.vars.get(&id).map(|f: &f64| *f)
 	}
-	#[inline(always)]
+	#[inline]
 	pub fn clear_stack(&mut self) {
 		self.stack.clear();
 	}
-	#[inline(always)]
+	#[inline]
 	pub fn stack_size(&self) -> usize {
 		self.stack.len()
 	}
@@ -176,7 +176,7 @@ impl VM {
 		self.last_result = res.clone();
 		res
 	}
-	#[inline(always)]
+	#[inline]
 	pub fn get_last_result(&self) -> Result<f64, ParseError> {
 		self.last_result.clone()
 	}
@@ -583,7 +583,7 @@ fn commands_test() {
 	test_command(&[Com::Int(5), Com::Int(10), Com::Sub], Some(-5.0));
 	test_command(&[Com::Int(5), Com::Int(2), Com::Pow], Some(25.0));
 	test_command(&[Com::Int(5), Com::Int(3), Com::Pow], Some(25.0*5.0));
-	test_command(&[Com::Int(25), Com::Sqrt], Some(5.0));
+	test_command(&[Com::Int(25), Com::Func(FuncType::Sqrt)], Some(5.0));
 	test_command(&[Com::Int(3), Com::Int(25*5), Com::Root], Some(5.0));
 }
 

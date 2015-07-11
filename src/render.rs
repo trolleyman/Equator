@@ -13,7 +13,7 @@ use func::FuncType;
 static debug_view_extents: bool = false;
 
 #[repr(packed)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Copy, Clone)]
 pub struct Extent {
 	x0: f64,
 	y0: f64,
@@ -63,6 +63,7 @@ impl Extent {
 
 const INIT_FONT_SIZE: f64 = 24.0;
 
+#[derive(Copy, Clone)]
 pub struct ExtentState {
 	pub len: usize,
 	pub cursor_set: bool,
