@@ -1,9 +1,10 @@
 use gtk::traits::*;
 
 use cairo::{Antialias, Context, FontOptions};
-use cairo::enums::FontSlant::*;
-use cairo::enums::FontWeight::*;
-use cairo::enums::HintStyle::*;
+use cairo::enums::FontSlant;
+use cairo::enums::FontWeight;
+use cairo::enums::HintStyle;
+use cairo::LineCap;
 
 use edit::{Editor, Cursor};
 use vis::*;
@@ -11,6 +12,16 @@ use self::Align::*;
 use func::FuncType;
 
 static debug_view_extents: bool = false;
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum FinalAlignment {
+	Central, // Central
+	Equals,  // Central, with = in the middle
+	Debug    // Eqn in top left, with 15 pix margin
+}
+const fn get_final_alignment() -> FinalAlignment {
+	FinalAlignment::Equals
+}
 
 #[repr(packed)]
 #[derive(Debug, Copy, Clone)]
@@ -150,12 +161,12 @@ impl<'a> Render<'a> {
 	
 	#[allow(unused_variables)]
 	pub fn render(&mut self, alloc_w: f64, alloc_h: f64) -> Extent {
-		self.c.select_font_face("CMU Serif", FontSlantNormal, FontWeightNormal);
+		self.c.select_font_face("CMU Serif", FontSlant::Normal, FontWeight::Normal);
 		self.c.set_font_size(INIT_FONT_SIZE);
-		self.c.set_antialias(Antialias::AntialiasBest);
+		self.c.set_antialias(Antialias::Best);
 		let opt = FontOptions::new();
-		opt.set_antialias(Antialias::AntialiasBest);
-		opt.set_hint_style(HintStyleMedium);
+		opt.set_antialias(Antialias::Best);
+		opt.set_hint_style(HintStyle::Medium);
 		self.c.set_font_options(opt);
 		self.c.identity_matrix();
 		
@@ -195,9 +206,12 @@ impl<'a> Render<'a> {
 		let path = self.c.copy_path();
 		
 		// === ALIGN ===
-		//let (mut x, mut y) = align(&full_extent, alloc_w/2.0, alloc_h/2.0, Mid); // Central
-		//let (mut x, mut y) = align(&Extent{x0:x_mid, x1:x_mid, y0:full_extent.y0, y1:full_extent.y1}, alloc_w/2.0, alloc_h/2.0, Mid); // Central, with = in the middle
-		let (mut x, mut y) = align(&full_extent, 30.0, 30.0, BotRight); // Eqn in top left, with 15 pix margin
+		let (mut x, mut y) = match get_final_alignment() {
+			FinalAlignment::Central => align(&full_extent, alloc_w/2.0, alloc_h/2.0, Mid),
+			FinalAlignment::Equals  => align(&Extent{x0:x_mid, x1:x_mid, y0:full_extent.y0, y1:full_extent.y1}, alloc_w/2.0, alloc_h/2.0, Mid),
+			FinalAlignment::Debug   => align(&full_extent, 30.0, 30.0, BotRight),
+		};
+		
 		x = x.floor();
 		y = y.floor();
 		self.exts.translate(x, y);
@@ -210,7 +224,7 @@ impl<'a> Render<'a> {
 			}
 			self.c.set_source_rgb(0.0, 1.0, 0.0);
 			self.c.set_line_width(1.0);
-			self.c.set_line_cap(::cairo::LineCap::LineCapSquare);
+			self.c.set_line_cap(LineCap::Square);
 			self.c.stroke();
 		}
 		

@@ -1,4 +1,4 @@
-#![feature(core, alloc, convert, box_syntax, str_char)]
+#![feature(convert, box_syntax, str_char, rc_weak, as_unsafe_cell, fmt_flags, const_fn)]
 #![allow(non_upper_case_globals)]
 extern crate gtk;
 extern crate gtk_sys;
