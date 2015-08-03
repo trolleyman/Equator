@@ -1,5 +1,5 @@
 # Equator
-Simple equation viewer written in Rust.
+Simple equation viewer/editor written in Rust.
 
 ## Instructions
 
