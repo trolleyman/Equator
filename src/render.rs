@@ -1,3 +1,5 @@
+use std::mem;
+
 use gtk::traits::*;
 
 use cairo::{Antialias, Context, FontOptions};
@@ -23,7 +25,6 @@ const fn get_final_alignment() -> FinalAlignment {
 	FinalAlignment::Equals
 }
 
-#[repr(packed)]
 #[derive(Debug, Copy, Clone)]
 pub struct Extent {
 	x0: f64,
@@ -33,7 +34,11 @@ pub struct Extent {
 }
 impl Extent {
 	pub fn new(ex: (f64, f64, f64, f64)) -> Extent {
-		unsafe { ::std::mem::transmute(ex) }
+		if mem::size_of::<Extent>() == mem::size_of::<(f64, f64, f64, f64)>() {
+			unsafe { mem::transmute(ex) }
+		} else {
+			Extent { x0:ex.0, y0:ex.1, x1:ex.2, y1:ex.3 }
+		}
 	}
 	pub fn w(&self) -> f64 {
 		self.x1 - self.x0
