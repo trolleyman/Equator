@@ -1,5 +1,3 @@
-use std::iter::RandomAccessIterator;
-
 use std::fmt;
 
 use gdk::{key, EventKey, self};
@@ -151,7 +149,7 @@ impl Cursor {
 			Some(t) => t,
 			None => return false
 		};
-		match tok.get_inner_expr().iter().idx(0) {
+		match tok.get_inner_expr().get(0) {
 			Some(expr) => {
 				self.ex = expr.clone();
 				self.pos = 0;
