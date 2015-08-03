@@ -26,12 +26,12 @@ fn times_pow_10(num: i64, exp: i32) -> i64 {
 	debug_assert!(POW_TABLE.len() == MAX_PRECISION as usize);
 	debug_assert!(exp != i32::min_value());
 	if exp >= 0 {
-		if exp > MAX_PRECISION as i32 {
-			panic!("expcannot be higher than MAX_PRECISION");
+		if exp >= MAX_PRECISION as i32 {
+			panic!("exp cannot be higher than MAX_PRECISION");
 		}
 		unsafe { num * *POW_TABLE.get_unchecked(exp as usize) as i64 }
 	} else {
-		if -exp > MAX_PRECISION as i32 {
+		if -exp >= MAX_PRECISION as i32 {
 			return 0;
 		}
 		unsafe { num / *POW_TABLE.get_unchecked((-exp) as usize) as i64 }
@@ -55,6 +55,7 @@ fn digits_len(num: i64) -> u32 {
 	0
 }
 
+#[allow(dead_code)]
 #[inline]
 fn get_digit(num: u64, pos: u32) -> u32 {
 	(num / pow_10(pos)) as u32 % 10
@@ -78,6 +79,7 @@ fn newton_raphson<F, G>(init: Num, f: F, f_dash: G) -> Num where F: Fn(Num) -> N
 }
 
 /// Base-10 number (Scientific notation)
+/// The aim of this structure is not to be as fast as possible, but as precise as possible.
 /// `1.2345` is represented with significand = 1,234,500,000,000,000 exponent = -15
 #[derive(Copy, Clone)]
 pub struct Num {
@@ -301,6 +303,7 @@ impl Display for Num {
 		
 		if self.exp < 0 {
 			let before_dp: i64 = times_pow_10(sig, self.exp as i32);
+			//println!("sig: {}, self.exp: {}, before: {}", sig, self.exp, before_dp);
 			try!(write!(s, "{}.", before_dp));
 		} else {
 			try!(write!(s, "{}", sig));
@@ -448,6 +451,11 @@ impl PartialEq<Num> for Num {
 impl Add<Num> for Num {
 	type Output = Num;
 	fn add(mut self, mut rhs: Num) -> Num {
+		if self.is_zero() { // Avoids dropping precision when one of the numbers is zero.
+			return rhs;
+		} else if rhs.is_zero() {
+			return self;
+		}
 		if self.exp > rhs.exp {
 			self.sig *= 10; // Increase precision by 1
 			self.exp -= 1;
@@ -471,12 +479,30 @@ impl Sub<Num> for Num {
 
 impl Mul<Num> for Num {
 	type Output = Num;
-	fn mul(self, rhs: Num) -> Num {
+	fn mul(mut self, mut rhs: Num) -> Num {
 		if self.is_zero() || rhs.is_zero() {
 			return Num::zero();
 		}
 		
-		let res = Num::zero();
+		self = self.normalise();
+		rhs  = rhs .normalise();
+		
+		//println!("  {:e}", self);
+		//println!("* {:e}", rhs);
+		//println!("---------------------");
+		
+		let mut res = Num::zero();
+		let base_exp = self.exp + rhs.exp;
+		//println!("base: {}", base_exp);
+		for i in 0..PRECISION {
+			// Get digit then shift self.sig to right. This way we get each digit in turn.
+			let digit = self.sig % 10;
+			self.sig /= 10;
+			let new = Num::new(digit * rhs.sig, base_exp + (i as i16));
+			//println!("{} * {} ({: >17})e{: <3} -> {: >20} {:?}, res: {}", digit, rhs.sig, digit * rhs.sig, base_exp + (i as i16), new, new, res);
+			res = res + new;
+		}
+		res
 	}
 }
 impl Div<Num> for Num {
@@ -701,7 +727,7 @@ impl FromStr for Num {
 
 #[allow(dead_code)]
 pub fn num_test() {
-	test_mul();
+	
 }
 #[test]
 fn test_to_num() {
@@ -792,6 +818,7 @@ fn test_display() {
 	test_one(Num::new(123456789, -20), "1.23456789e-12", "0.00000000000123456789");
 	test_one(Num::new(123456789, -8), "1.23456789e0", "1.23456789");
 	test_one(Num::new(1001001001001, -5), "1.001001001001e7", "10010010.01001");
+	test_one(Num::new(462, -6), "4.62e-4", "0.000462");
 	test_one(Num::new(-100, 0), "-1e2", "-100");
 	test_one(Num::new(9999999999999999	, 0), "9.999999999999999e15", "9999999999999999"); // 16 9s
 	test_one(Num::new(99999999999999989 , 0), "9.999999999999999e16", "99999999999999990"); // 16 9s, 1 8
@@ -804,8 +831,8 @@ fn test_display() {
 	test_one(Num::new(123456789, 45), "1.23456789e53", "123456789000000000000000000000000000000000000000000000");
 	test_one(Num::new(987654456789, -6), "9.87654456789e5", "987654.456789");
 	
-	test_one(Num::E					 , "2.718281828459045e0", "2.718281828459045");
-	test_one(Num::PI					, "3.141592653589793e0", "3.141592653589793");
+	test_one(Num::E           , "2.718281828459045e0", "2.718281828459045");
+	test_one(Num::PI          , "3.141592653589793e0", "3.141592653589793");
 	test_one(Num::GOLDEN_RATIO, "1.618033988749895e0", "1.618033988749895");
 }
 #[test]
@@ -875,7 +902,7 @@ fn test_sub() {
 	test_one(Num::new(9998887776665558, 5) , Num::new(9998887776665558, -3) , Num::new(9998887676676680, 5), None); // Acutal: 999888767667668023334.442
 	test_one(Num::new(-9998887776665558, 5), Num::new(-9998887776665558, -3), Num::new(-9998887676676680, 5), None); // Acutal: -999888767667668023334.442
 }
-//#[test]
+#[test]
 fn test_mul() {
 	fn test_one(a: Num, b: Num, expected: Num) {
 		let calc = a * b;
@@ -892,8 +919,8 @@ fn test_mul() {
 	test_one(Num::new(123456789, 0), Num::new(123456789, 0), Num::new(15241578750190521, 0));
 	test_one(Num::new(123456789, 0), Num::new(-123456789, 0), Num::new(-15241578750190521, 0));
 	test_one(Num::new(-123456789, 0), Num::new(-123456789, 0), Num::new(15241578750190521, 0));
-	test_one(Num::new(123456789123, 0), Num::new(123456789123, 0), Num::new(1524157877488188, 7));
-	// ^ Actual answer is 15241578780560891109129, but due to rounding this becomes 15241578774881880000000
+	test_one(Num::new(123456789123, 0), Num::new(123456789123, 0), Num::new(1524157878056089, 7));
+	// ^ Actual answer is 15241578780560891109129, but due to rounding this becomes 15241578780560890000000
 	test_one(Num::new(1255134, -5), Num::new(154, -2), Num::new(193290636, -7));
 	test_one(Num::new(9999999999999999, 0), Num::new(9999999999999999, 0), Num::new(9999999999999998, 16));
 }

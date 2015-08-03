@@ -1,4 +1,4 @@
-#![feature(convert, box_syntax, str_char, associated_consts, rc_weak, as_unsafe_cell, fmt_flags, const_fn)]
+#![feature(convert, box_syntax, str_char, rc_weak, as_unsafe_cell, fmt_flags, const_fn, associated_consts)]
 #![allow(non_upper_case_globals)]
 extern crate gtk;
 extern crate gtk_sys;
@@ -51,8 +51,6 @@ pub fn get_vm() -> &'static mut com::VM {
 }
 
 fn main() {
-	num::num_test();
-	
 	match gtk::init() {
 		Err(_) => panic!("GTK could not be initialized"),
 		_ => {}
