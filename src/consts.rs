@@ -13,7 +13,7 @@ pub const CHAR_BOX: char = '□';
 pub const CHAR_HLBOX: char = '■';
 
 /// e
-pub const E: f64 = ::std::f64::consts::E;
+pub const E: f64 = 2.71828182845904523536028747135266249775724709369995;
 /// π
 pub const PI: f64 = ::std::f64::consts::PI;
 /// φ

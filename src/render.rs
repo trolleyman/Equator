@@ -185,14 +185,7 @@ impl<'a> Render<'a> {
 		let ret = ::get_vm().get_last_result();
 		let s = match ret {
 			Ok(val) => {
-				const DP: usize = 7;
-				let fact: f64 = (10.0f64).powi(DP as i32);
-				let mut full_s = format!("{}", (val * fact).round() / fact);
-				match full_s.find('.') {
-					Some(i) => if i + DP + 1 <= full_s.len() { full_s.truncate(i + DP + 1) },
-					None => {}
-				}
-				full_s
+				format!("{}", val)
 			},
 			Err(_)  => "?".to_string(),
 		};

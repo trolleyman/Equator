@@ -3,6 +3,7 @@ use std::fmt::Error;
 
 use consts::*;
 use gui;
+use num::Num;
 
 use self::FuncType::*;
 
@@ -50,18 +51,18 @@ impl Display for FuncType {
 	}
 }
 impl FuncType {
-	pub fn execute(&self, val: f64) -> f64 {
+	pub fn execute(&self, val: Num) -> Option<Num> {
 		let mut v = val;
 		if self.is_trigonometric_in() {
 			// Convert whatever is the current mode to radians
 			v = match gui::get_trig_mode() {
 				gui::TrigMode::Radians  => v,
-				gui::TrigMode::Degrees  => v / 180.0 * PI,
-				gui::TrigMode::Gradians => v / 200.0 * PI,
+				gui::TrigMode::Degrees  => v / 180 * Num::PI,
+				gui::TrigMode::Gradians => v / 200 * Num::PI,
 			};
 		}
 		
-		v = match self {
+		let out = match self {
 			&Sqrt   => v.sqrt(),
 			&Sin    => v.sin(),
 			&Cos    => v.cos(),
@@ -76,20 +77,25 @@ impl FuncType {
 			&Arcosh => v.acosh(),
 			&Artanh => v.atanh(),
 			&Ln     => v.ln(),
-			&Fact   => factorial(v),
-			&Abs    => v.abs(),
+			&Fact   => v.factorial(),
+			&Abs    => Some(v.abs()),
+		};
+		
+		v = match out {
+			Some(out_val) => out_val,
+			None => return None
 		};
 		
 		if self.is_trigonometric_out() {
 			// Convert whatever is the current mode to radians
 			v = match gui::get_trig_mode() {
 				gui::TrigMode::Radians  => v,
-				gui::TrigMode::Degrees  => v * 180.0 / PI,
-				gui::TrigMode::Gradians => v * 200.0 / PI,
+				gui::TrigMode::Degrees  => v * 180 / Num::PI,
+				gui::TrigMode::Gradians => v * 200 / Num::PI,
 			};
 		}
 		
-		v
+		Some(v)
 	}
 	
 	// This function takes in radians, gives out arbritrary numbers
@@ -107,17 +113,4 @@ impl FuncType {
 			&Sin | &Cos | &Tan | &Sqrt | &Sinh | &Cosh | &Tanh | &Arsinh | &Arcosh | &Artanh | &Ln | &Fact | &Abs => false,
 		}
 	}
-}
-
-/// Warning: NOT the gamma function - just floors the float and then performs some stuff.
-fn factorial(f: f64) -> f64 {
-	if f < 0.0 {
-		::std::f64::NAN
-	} else if f.floor() == 0.0 {
-		1.0
-	} else if !(f.floor() > 0.0) {
-		::std::f64::NAN
-	} else {
-		factorial(f - 1.0) * f
-	}	
 }

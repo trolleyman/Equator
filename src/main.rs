@@ -1,4 +1,4 @@
-#![feature(convert, box_syntax, str_char, rc_weak, as_unsafe_cell, fmt_flags, const_fn)]
+#![feature(convert, box_syntax, str_char, associated_consts, rc_weak, as_unsafe_cell, fmt_flags, const_fn)]
 #![allow(non_upper_case_globals)]
 extern crate gtk;
 extern crate gtk_sys;
@@ -26,16 +26,33 @@ static mut g_editor: *mut edit::Editor = 0 as *mut edit::Editor;
 static mut g_vm    : *mut com::VM = 0 as *mut com::VM;
 
 pub fn get_window() -> &'static mut Window {
-	unsafe { transmute(g_window) }
+	unsafe {
+		if g_window.is_null() {
+			panic!("window not initialized");
+		}
+		&mut *g_window
+	}
 }
 pub fn get_editor() -> &'static mut edit::Editor {
-	unsafe { transmute(g_editor) }
+	unsafe {
+		if g_editor.is_null() {
+			panic!("editor not initialized");
+		}
+		&mut *g_editor
+	}
 }
 pub fn get_vm() -> &'static mut com::VM {
-	unsafe { transmute(g_vm) }
+	unsafe {
+		if g_vm.is_null() {
+			panic!("vm not initialized");
+		}
+		&mut *g_vm
+	}
 }
 
 fn main() {
+	num::num_test();
+	
 	match gtk::init() {
 		Err(_) => panic!("GTK could not be initialized"),
 		_ => {}

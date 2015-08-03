@@ -6,6 +6,7 @@ use vis::*;
 use func::*;
 use err::*;
 use edit;
+use num::Num;
 
 #[allow(non_snake_case)]
 mod Com {
@@ -14,8 +15,7 @@ mod Com {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Command {
 	Var(char), // Pushes variable with char identifier to the stack
-	Int(i64), // Pushes integer literal to the stack
-	Float(f64), // Pushed float literal to the stack
+	Num(Num), // Pushes literal to the stack
 	Add, // A, B => A + B
 	Sub, // A, B => A - B
 	Mul, // A, B => A * B
@@ -33,8 +33,7 @@ impl Command {
 	pub fn pops(&self) -> usize {
 		match self {
 			&Com::Var(_) => 0,
-			&Com::Int(_) => 0,
-			&Com::Float(_) => 0,
+			&Com::Num(_) => 0,
 			&Com::Add => 2,
 			&Com::Sub => 2,
 			&Com::Mul => 2,
@@ -52,8 +51,7 @@ impl Command {
 	pub fn pushes(&self) -> usize {
 		match self {
 			&Com::Var(_) => 1,
-			&Com::Int(_) => 1,
-			&Com::Float(_) => 1,
+			&Com::Num(_) => 1,
 			&Com::Add => 1,
 			&Com::Sub => 1,
 			&Com::Mul => 1,
@@ -70,7 +68,7 @@ impl Command {
 	pub fn is_operator(&self) -> bool {
 		match self {
 			&Com::Add | &Com::Sub | &Com::Mul | &Com::Div | &Com::Neg | &Com::Pow | &Com::Func(_) | &Com::Root => true,
-			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false
+			&Com::Var(_) | &Com::Num(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false
 		}
 	}
 	pub fn prescedence(&self) -> Option<u32> {
@@ -80,34 +78,34 @@ impl Command {
 			&Com::Mul | &Com::Div => Some(3),
 			&Com::Neg => Some(4),
 			&Com::Func(_) | &Com::Root => Some(5),
-			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => None
+			&Com::Var(_) | &Com::Num(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => None
 		}
 	}
 	pub fn is_left_associative(&self) -> bool {
 		match self {
 			&Com::Add | &Com::Sub | &Com::Mul | &Com::Div | &Com::Func(_) | &Com::Root | &Com::Neg => true,
 			&Com::Pow => false,
-			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false,
+			&Com::Var(_) | &Com::Num(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false,
 		}
 	}
 	pub fn is_right_associative(&self) -> bool {
 		match self {
 			&Com::Add | &Com::Sub | &Com::Mul | &Com::Div | &Com::Func(_) | &Com::Root | &Com::Neg => false,
 			&Com::Pow => true,
-			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false,
+			&Com::Var(_) | &Com::Num(_) | &Com::Comma | &Com::ParenOpen | &Com::ParenClose => false,
 		}
 	}
 	/// If an implicit multiplication is performed if this command is on the left, and the other command is_automul_right()
 	pub fn is_left_automul(&self) -> bool {
 		match self {
-			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) | &Com::Func(_) | &Com::Root | &Com::ParenClose => true,
+			&Com::Var(_) | &Com::Num(_) | &Com::Func(_) | &Com::Root | &Com::ParenClose => true,
 			&Com::Add | &Com::Sub | &Com::Mul | &Com::Div | &Com::Neg | &Com::Pow | &Com::Comma | &Com::ParenOpen => false
 		}
 	}
 	/// If an implicit multiplication is performed if this command is on the right, and the other command is_automul_left()
 	pub fn is_right_automul(&self) -> bool {
 		match self {
-			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) | &Com::Func(_) | &Com::Root | &Com::ParenOpen => true,
+			&Com::Var(_) | &Com::Num(_) | &Com::Func(_) | &Com::Root | &Com::ParenOpen => true,
 			&Com::Add | &Com::Sub | &Com::Mul | &Com::Div | &Com::Pow | &Com::Neg | &Com::Comma | &Com::ParenClose => false
 		}
 	}
@@ -117,48 +115,48 @@ impl Command {
 /// e.g. stack, variable states.
 #[derive(Debug)]
 pub struct VM {
-	stack: Vec<f64>,
-	vars : HashMap<char, f64>,
+	stack: Vec<Num>,
+	vars : HashMap<char, Num>,
 	num  : usize, // number of commands executed on this VM
-	last_result: Result<f64, ParseError>,
+	last_result: Result<Num, ParseError>,
 }
 impl VM {
 	pub fn new() -> VM {
 		let mut hm = HashMap::new();
-		hm.insert('π', PI);
-		hm.insert('e', E);
-		hm.insert('φ', GOLDEN_RATIO);
+		hm.insert('π', Num::PI);
+		hm.insert('e', Num::E);
+		hm.insert('φ', Num::GOLDEN_RATIO);
 		VM{stack:Vec::new(), vars:hm, num:0, last_result:Err(LastResultNotInitialized)}
 	}
-	#[inline]
-	pub fn push(&mut self, v: f64) {
+	#[inline(always)]
+	pub fn push(&mut self, v: Num) {
 		self.stack.push(v);
 	}
-	#[inline]
-	pub fn pop(&mut self) -> Option<f64> {
+	#[inline(always)]
+	pub fn pop(&mut self) -> Option<Num> {
 		self.stack.pop()
 	}
-	#[inline]
-	pub fn peek(&mut self) -> Option<f64> {
+	#[inline(always)]
+	pub fn peek(&mut self) -> Option<Num> {
 		self.stack.get(0).map(|f| {*f})
 	}
-	#[inline]
-	pub fn set_var(&mut self, id: char, v: f64) {
+	#[inline(always)]
+	pub fn set_var(&mut self, id: char, v: Num) {
 		self.vars.insert(id, v);
 	}
-	#[inline]
-	pub fn get_var(&mut self, id: char) -> Option<f64> {
-		self.vars.get(&id).map(|f: &f64| *f)
+	#[inline(always)]
+	pub fn get_var(&mut self, id: char) -> Option<Num> {
+		self.vars.get(&id).map(|f: &Num| *f)
 	}
-	#[inline]
+	#[inline(always)]
 	pub fn clear_stack(&mut self) {
 		self.stack.clear();
 	}
-	#[inline]
+	#[inline(always)]
 	pub fn stack_size(&self) -> usize {
 		self.stack.len()
 	}
-	pub fn get_result(&mut self, coms: &[Command]) -> Result<f64, ParseError> {
+	pub fn get_result(&mut self, coms: &[Command]) -> Result<Num, ParseError> {
 		match self.execute_all(coms) {
 			Ok(_) => {},
 			Err(e) => {
@@ -176,8 +174,8 @@ impl VM {
 		self.last_result = res.clone();
 		res
 	}
-	#[inline]
-	pub fn get_last_result(&self) -> Result<f64, ParseError> {
+	#[inline(always)]
+	pub fn get_last_result(&self) -> Result<Num, ParseError> {
 		self.last_result.clone()
 	}
 	pub fn execute_all(&mut self, coms: &[Command]) -> Result<(), ParseError> {
@@ -228,8 +226,7 @@ impl VM {
 				};
 				self.push(val);
 			},
-			&Com::Int(v) => self.push(v as f64),
-			&Com::Float(v) => self.push(v),
+			&Com::Num(v) => self.push(v),
 			&Com::Add => {
 				let b = self.pop().unwrap(); // Intentional B first.
 				let a = self.pop().unwrap();
@@ -257,16 +254,24 @@ impl VM {
 			&Com::Pow => {
 				let b = self.pop().unwrap(); // Intentional B first.
 				let a = self.pop().unwrap();
-				self.push(a.powf(b));
+				match a.pow(b) {
+					Some(res) => self.push(res),
+					None => return Err(CommandExecuteError(com.clone(), pos))
+				}
 			},
 			&Com::Func(ref func) => {
-				let sqrt = func.execute(self.pop().unwrap());
-				self.push(sqrt);
+				match func.execute(self.pop().unwrap()) {
+					Some(res) => self.push(res),
+					None => return Err(CommandExecuteError(com.clone(), pos))
+				}
 			},
 			&Com::Root => {
 				let b = self.pop().unwrap(); // Intentional B first.
 				let a = self.pop().unwrap();
-				self.push(b.powf(a.recip()));
+				match a.recip().map(|recip| b.pow(recip)) {
+					Some(Some(res)) => self.push(res),
+					_ => return Err(CommandExecuteError(com.clone(), pos))
+				}
 			},
 			&Com::Comma | &Com::ParenOpen | &Com::ParenClose => return Err(IllegalCommand(com.clone(), self.num)),
 		}
@@ -452,18 +457,9 @@ fn should_automul(left: Command, right: Command) -> Result<bool, ParseError> {
 
 fn parse_num_buf(num_buf: &str, start: &edit::Cursor) -> Result<Command, ParseError> {
 	// Flush buffer
-	let com = if num_buf.find('.').is_some() {
-		// Try parsing as float
-		match num_buf.parse() {
-			Ok(v) => Com::Float(v),
-			Err(_) => return Err(FloatParseError(start.ex.clone(), start.pos, start.pos + num_buf.len() - 1)),
-		}
-	} else {
-		// Try parsing as int
-		match num_buf.parse() {
-			Ok(v) => Com::Int(v),
-			Err(_) => return Err(OverflowError),
-		}
+	let com = match num_buf.parse() {
+		Ok(v) => Com::Num(v),
+		Err(_) => return Err(NumParseError(start.ex.clone(), start.pos, start.pos + num_buf.len() - 1)),
 	};
 	
 	Ok(com)
@@ -483,7 +479,7 @@ fn infix_to_postfix(infix: &[Command]) -> Result<Vec<Command>, ParseError> {
 	let mut i = 0;
 	for tok in infix {
 		match tok {
-			&Com::Var(_) | &Com::Int(_) | &Com::Float(_) => postfix.push(tok.clone()),
+			&Com::Var(_) | &Com::Num(_) => postfix.push(tok.clone()),
 			&Com::Func(_) => stack.push(tok.clone()),
 			&Com::Comma => {
 				loop {
@@ -549,8 +545,7 @@ pub fn commands_to_string(coms: &[Command], spaces: bool) -> String {
 	for com in coms.iter() {
 		match com {
 			&Com::Var(ref var) => s.push(*var),
-			&Com::Int(ref i) => { let _ = write!(s, "{}", i); },
-			&Com::Float(ref f) => { let _ = write!(s, "{}", f); },
+			&Com::Num(ref v) => { let _ = write!(s, "{}", v); },
 			&Com::Add => s.push(CHAR_ADD),
 			&Com::Sub => s.push(CHAR_SUB),
 			&Com::Mul => s.push(CHAR_MUL_SIMPLE),
@@ -578,27 +573,29 @@ pub fn commands_to_string(coms: &[Command], spaces: bool) -> String {
 
 #[test]
 fn commands_test() {
-	test_command(&[Com::Int(5), Com::Int(3), Com::Int(2), Com::Add, Com::Mul], Some(25.0));
-	test_command(&[Com::Int(5), Com::Int(10), Com::Div], Some(0.5));
-	test_command(&[Com::Int(5), Com::Int(10), Com::Sub], Some(-5.0));
-	test_command(&[Com::Int(5), Com::Int(2), Com::Pow], Some(25.0));
-	test_command(&[Com::Int(5), Com::Int(3), Com::Pow], Some(25.0*5.0));
-	test_command(&[Com::Int(25), Com::Func(FuncType::Sqrt)], Some(5.0));
-	test_command(&[Com::Int(3), Com::Int(25*5), Com::Root], Some(5.0));
+	test_command(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(3, 0)), Com::Num(Num::new(2, 0)), Com::Add, Com::Mul], Some(Num::new(25, 0)));
+	test_command(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(10, 0)), Com::Div], Some(Num::new(5, -1)));
+	test_command(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(10, 0)), Com::Sub], Some(Num::new(-5, 0)));
+	test_command(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(2, 0)), Com::Pow], Some(Num::new(25, 0)));
+	test_command(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(3, 0)), Com::Pow], Some(Num::new(5*5*5, 0)));
+	test_command(&[Com::Num(Num::new(25, 0)), Com::Func(FuncType::Sqrt)], Some(Num::new(5, 0)));
+	test_command(&[Com::Num(Num::new(3, 0)), Com::Num(Num::new(5*5*5, 0)), Com::Root], Some(Num::new(5, 0)));
 }
 
 #[allow(dead_code)]
-fn test_command(coms: &[Command], expected_res: Option<f64>) {
-	const ACCEPTABLE_ERROR: f64 = ::std::f64::EPSILON * 8.0;
+fn test_command(coms: &[Command], expected: Option<Num>) {
 	let res = VM::new().get_result(coms).ok();
-	println!("{} == {:?}? (={:?})", commands_to_string(coms, true), expected_res, res);
-	match (res, expected_res) {
-		(None, None) => {},
-		(Some(_), None) | (None, Some(_)) => panic!("testing assertion failed"),
-		(Some(r), Some(e)) => {
-			if (r - e).abs() > ACCEPTABLE_ERROR {
-				panic!("testing assertion failed");
-			}
-		},
+	print!("{} = ", commands_to_string(coms, true));
+	if res.is_some() {
+		print!("Some({}) (", res.unwrap());
+	} else {
+		print!("None (");
 	}
+	if expected.is_some() {
+		print!("Some({})) ? ", expected.unwrap());
+	} else {
+		print!("None) ? ");
+	}
+	println!("{}", res == expected);
+	assert_eq!(res, expected);
 }

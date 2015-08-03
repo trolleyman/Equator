@@ -3,10 +3,8 @@ name = "equator"
 version = "0.0.1"
 authors = ["Callum Tolley <cgtrolley@gmail.com>"]
 
-#[dependencies]
-#gdk = "*"
-#gtk = "*"
-#cairo-rs = "*"
+[dependencies.extprim]
+git = "https://github.com/kennytm/extprim"
 
 [dependencies.gdk]
 git = "https://github.com/rust-gnome/gdk"
