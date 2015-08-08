@@ -254,10 +254,7 @@ impl VM {
 			&Com::Pow => {
 				let b = self.pop().unwrap(); // Intentional B first.
 				let a = self.pop().unwrap();
-				match a.pow(b) {
-					Some(res) => self.push(res),
-					None => return Err(CommandExecuteError(com.clone(), pos))
-				}
+				self.push(a.pow(b));
 			},
 			&Com::Func(ref func) => {
 				match func.execute(self.pop().unwrap()) {
@@ -269,7 +266,7 @@ impl VM {
 				let b = self.pop().unwrap(); // Intentional B first.
 				let a = self.pop().unwrap();
 				match a.recip().map(|recip| b.pow(recip)) {
-					Some(Some(res)) => self.push(res),
+					Some(res) => self.push(res),
 					_ => return Err(CommandExecuteError(com.clone(), pos))
 				}
 			},
@@ -573,29 +570,28 @@ pub fn commands_to_string(coms: &[Command], spaces: bool) -> String {
 
 #[test]
 fn commands_test() {
-	test_command(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(3, 0)), Com::Num(Num::new(2, 0)), Com::Add, Com::Mul], Some(Num::new(25, 0)));
-	test_command(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(10, 0)), Com::Div], Some(Num::new(5, -1)));
-	test_command(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(10, 0)), Com::Sub], Some(Num::new(-5, 0)));
-	test_command(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(2, 0)), Com::Pow], Some(Num::new(25, 0)));
-	test_command(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(3, 0)), Com::Pow], Some(Num::new(5*5*5, 0)));
-	test_command(&[Com::Num(Num::new(25, 0)), Com::Func(FuncType::Sqrt)], Some(Num::new(5, 0)));
-	test_command(&[Com::Num(Num::new(3, 0)), Com::Num(Num::new(5*5*5, 0)), Com::Root], Some(Num::new(5, 0)));
-}
-
-#[allow(dead_code)]
-fn test_command(coms: &[Command], expected: Option<Num>) {
-	let res = VM::new().get_result(coms).ok();
-	print!("{} = ", commands_to_string(coms, true));
-	if res.is_some() {
-		print!("Some({}) (", res.unwrap());
-	} else {
-		print!("None (");
+	fn test_one(coms: &[Command], expected: Option<Num>) {
+		let res = VM::new().get_result(coms).ok();
+		print!("{} = ", commands_to_string(coms, true));
+		if res.is_some() {
+			print!("Some({}) (", res.unwrap());
+		} else {
+			print!("None (");
+		}
+		if expected.is_some() {
+			print!("Some({})) ? ", expected.unwrap());
+		} else {
+			print!("None) ? ");
+		}
+		println!("{}", res == expected);
+		assert_eq!(res, expected);
 	}
-	if expected.is_some() {
-		print!("Some({})) ? ", expected.unwrap());
-	} else {
-		print!("None) ? ");
-	}
-	println!("{}", res == expected);
-	assert_eq!(res, expected);
+	
+	test_one(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(3, 0)), Com::Num(Num::new(2, 0)), Com::Add, Com::Mul], Some(Num::new(25, 0)));
+	test_one(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(10, 0)), Com::Div], Some(Num::new(5, -1)));
+	test_one(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(10, 0)), Com::Sub], Some(Num::new(-5, 0)));
+	test_one(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(2, 0)), Com::Pow], Some(Num::new(25, 0)));
+	test_one(&[Com::Num(Num::new(5, 0)), Com::Num(Num::new(3, 0)), Com::Pow], Some(Num::new(5*5*5, 0)));
+	test_one(&[Com::Num(Num::new(25, 0)), Com::Func(FuncType::Sqrt)], Some(Num::new(5, 0)));
+	//test_one(&[Com::Num(Num::new(3, 0)), Com::Num(Num::new(5*5*5, 0)), Com::Root], Some(Num::new(5, 0)));
 }

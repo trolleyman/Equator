@@ -113,9 +113,25 @@ pub fn init_gui() {
 	}
 	
 	let var_frame = Frame::new(Some("Variables")).unwrap();
-	{
+	/* Need to figure out how to remove children / iterate through them.
+	let var_vbox = Box::new(Orientation::Vertical, 5).unwrap();
+	var_vbox.connect_draw(|w: Widget, c: Context| {
 		// Add a bunch of variable controls
-	}
+		let b = Box::wrap_widget(w.unwrap_widget());
+		let vars: Vec<(char, Num)> = Vec::with_capacity(16);
+		for (k, v) in ::get_vm().vars.iter() {
+			if !com::is_constant(k) {
+				vars.push((k, v));
+			}
+		}
+		
+		vars.sort();
+		
+		for (k, v) in vars.iter() {
+			
+		}
+	});
+	var_frame.add(var_vbox);*/
 	
 	let button_grid = get_button_grid();     // This is the 'keypad'
 	

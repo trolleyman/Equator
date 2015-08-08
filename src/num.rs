@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub, Mul, Div, Neg/*, Rem*/};
+use std::ops::{Add, Sub, Mul, Div, Neg, Rem};
 use std::str::FromStr;
 use std::cmp::{Ordering, PartialOrd, Ord, PartialEq, Eq};
 use std::fmt::{self, Write, Formatter, Display, Debug, LowerExp, UpperExp};
@@ -29,12 +29,12 @@ fn times_pow_10(num: i64, exp: i32) -> i64 {
 		if exp >= MAX_PRECISION as i32 {
 			panic!("exp cannot be higher than MAX_PRECISION");
 		}
-		unsafe { num * *POW_TABLE.get_unchecked(exp as usize) as i64 }
+		num * POW_TABLE[exp as usize] as i64
 	} else {
 		if -exp >= MAX_PRECISION as i32 {
 			return 0;
 		}
-		unsafe { num / *POW_TABLE.get_unchecked((-exp) as usize) as i64 }
+		num / POW_TABLE[(-exp) as usize] as i64
 	}
 }
 #[inline(always)]
@@ -92,10 +92,16 @@ impl Num {
 	pub const E: Num = Num{sig:2718281828459045, exp:-15};//Num::new(27182818284590452, -16);
 	pub const PI: Num = Num{sig:3141592653589793, exp:-15};//Num::new(31415926535897932, -16);
 	pub const GOLDEN_RATIO: Num = Num{sig:1618033988749895, exp:-15};//Num::new(16180339887498948, -16);
+	pub const LN_10: Num = Num{sig: 2302585092994046, exp:-15};//Num::new(3025850929940456, -16);
 	
 	#[inline(always)]
 	pub fn new(sig: i64, exp: i16) -> Num {
 		Num {sig:sig, exp:exp}.normalise()
+	}
+	
+	#[inline(always)]
+	pub fn sig(sig: i64) -> Num {
+		Num {sig:sig, exp:0}.normalise()
 	}
 	
 	#[inline(always)]
@@ -162,7 +168,7 @@ impl Num {
 	
 	#[inline(always)]
 	pub fn floor(self) -> Num {
-		if self.exp > 0 {
+		if self.exp >= 0 {
 			self
 		} else {
 			Num::new(times_pow_10(times_pow_10(self.sig, self.exp as i32), -self.exp as i32), self.exp)
@@ -242,9 +248,50 @@ impl Num {
 		self.as_float().atanh().to_num_opt()
 	}
 	
-	#[inline(always)]
-	pub fn ln(self) -> Option<Num> {
-		self.as_float().ln().to_num_opt()
+	pub fn ln(mut self) -> Option<Num> {
+		if self <= Num::zero() {
+			None
+		} else if self == Num::new(1, 0) {
+			Some(Num::zero())
+		} else if self == Num::E {
+			Some(Num::sig(1))
+		} else {
+			// https://en.wikipedia.org/wiki/Natural_logarithm#Numerical_value
+			// ln(x) = ln((1+y)/(1-y)) = 2y( 1/1 + 1/3 * y^2 + 1/5 * y^4 + 1/7 * y^6) )
+			
+			// ln(a * 10^b) = ln(a) + b * ln(10)
+			let exp = self.exp + PRECISION as i16 - 1;
+			//print!("{}", self);
+			self.exp = - (PRECISION as i16 - 1);
+			//println!(" = {} * 10^{}", self, exp);
+			
+			let y = (self - 1) / (self + 1);
+			
+			let mut res = 1.to_num();
+			let mut prev = res;
+			let mut y_cache = y * y;
+			//println!("y: {}", y);
+			//println!("y_cache: {}", y_cache);
+			//println!("res: {}", res);
+			// Starting after 1/1
+			for i in 0..100 {
+				res = res + ((Num::sig(1)/(i.to_num() * Num::sig(2) + Num::sig(3))) * y_cache);
+				//println!("res: {}", res);
+				y_cache = y_cache * y * y;
+				
+				// No difference in result this iteration, so break.
+				if (res - prev).abs() == Num::zero() {
+					//println!("break;");
+					break;
+				}
+				prev = res;
+			}
+			res = res * (Num::sig(2) * y);
+			
+			res = res + (exp.to_num() * Num::LN_10);
+			
+			Some(res)
+		}
 	}
 	
 	#[inline(always)]
@@ -276,15 +323,32 @@ impl Num {
 		Some(res)
 	}
 	
-	pub fn pow(self, n: Num) -> Option<Num> {
-		self.as_float().powf(n.as_float()).to_num_opt()
-	}
-	pub fn powt<T>(self, n: T) -> Option<Num> where T: ToNumOpt {
-		let b = match n.to_num_opt() {
-			Some(b) => b,
-			None => return None
-		};
-		self.as_float().powf(b.as_float()).to_num_opt()
+	pub fn pow(self, mut n: Num) -> Num {
+		// https://en.wikipedia.org/wiki/Exponentiation_by_squaring#Basic_method
+		// The iterative method
+		let mut x = self;
+		
+		if n < Num::zero() {
+			x = Num::sig(1) / x;
+			n = -n;
+		}
+		if n.is_zero() {
+			return Num::sig(1);
+		}
+		let mut y = Num::sig(1);
+		while n > Num::sig(1) {
+			if (n % Num::sig(2)).is_zero() {
+				// Even
+				x = x * x;
+				n = n / Num::sig(2);
+			} else {
+				// Odd
+				y = x * y;
+				x = x * x;
+				n = (n-Num::sig(1)) / Num::sig(2);
+			}
+		}
+		x * y
 	}
 }
 impl Display for Num {
@@ -448,9 +512,8 @@ impl PartialEq<Num> for Num {
 	}
 }
 
-impl Add<Num> for Num {
-	type Output = Num;
-	fn add(mut self, mut rhs: Num) -> Num {
+impl Num {
+	fn add_precise(mut self, mut rhs: Num) -> Num {
 		if self.is_zero() { // Avoids dropping precision when one of the numbers is zero.
 			return rhs;
 		} else if rhs.is_zero() {
@@ -460,13 +523,20 @@ impl Add<Num> for Num {
 			self.sig *= 10; // Increase precision by 1
 			self.exp -= 1;
 			self.sig += times_pow_10(rhs.sig, -(self.exp as i32 - rhs.exp as i32));
-			self.normalise()
+			self
 		} else {
 			rhs.sig *= 10;
 			rhs.exp -= 1;
 			rhs.sig += times_pow_10(self.sig, -(rhs.exp as i32 - self.exp as i32));
-			rhs.normalise()
+			rhs
 		}
+	}
+}
+impl Add<Num> for Num {
+	type Output = Num;
+	#[inline(always)]
+	fn add(self, rhs: Num) -> Num {
+		Num::add_precise(self, rhs).normalise()
 	}
 }
 impl Sub<Num> for Num {
@@ -542,6 +612,14 @@ impl Div<Num> for Num {
 		
 		println!("ret: {:?}", Num{sig:ret_sig, exp:ret_exp});
 		Num::new(ret_sig, ret_exp)*/
+	}
+}
+impl Rem<Num> for Num {
+	type Output = Self;
+	fn rem(self, rhs: Num) -> Num {
+		let a = (self / rhs).floor();
+		//println!("self {} % rhs {} --> {}", self, rhs, a);
+		self - (a * rhs)
 	}
 }
 
@@ -953,7 +1031,55 @@ fn test_div() {
 	test_one(Num::new(682051, 0), Num::new(54, 0), Num::new(1263057407407407, -11));
 	test_one(Num::new(942858765159, 0), Num::new(789145, 0), Num::new(1194785198105545, -9));
 }
+#[test]
+fn test_rem() {
+	fn test_one(a: Num, b: Num, expected: Num) {
+		let calc = a % b;
+		//println!("{:?} % {:?} = {:?} ({:?}) ? {}", a, b, calc, expected, calc == expected);
+		println!("{} % {} = {} ({}) ? {}", a, b, calc, expected, calc == expected);
+		assert_eq!(calc, expected);
+	}
+	
+	println!(" == Testing Modulo (Remainder) == ");
+	test_one(Num::zero(), Num::new(1, 0), Num::zero());
+	test_one(Num::new(1, 0), Num::new(2, 0), Num::new(1, 0));
+	test_one(Num::new( 100, 0), Num::new( 2, 0), Num::zero());
+	test_one(Num::new(-100, 0), Num::new( 2, 0), Num::zero());
+	test_one(Num::new(-100, 0), Num::new(-2, 0), Num::zero());
+	test_one(Num::new( 100, 0), Num::new(-2, 0), Num::zero());
+	test_one(Num::new( 101, 0), Num::new( 2, 0), Num::sig( 1));
+	test_one(Num::new(-101, 0), Num::new( 2, 0), Num::sig(-1));
+	test_one(Num::new(-101, 0), Num::new(-2, 0), Num::sig(-1));
+	test_one(Num::new( 101, 0), Num::new(-2, 0), Num::sig( 1));
+}
 
+#[test]
+fn test_ln() {
+	fn test_one(num: Num, expected: Option<Num>) {
+		let calc = num.ln();
+		
+		print!("ln({}) = ", num);
+		match calc {
+			Some(n) => print!("Some({}) ", n),
+			None    => print!("None ")
+		}
+		
+		match expected {
+			Some(n) => println!("(Some({})) ? {}", n, calc == expected),
+			None    => println!("(None) ? {}", calc == expected)
+		}
+		assert_eq!(calc, expected);
+	}
+	
+	println!(" == Testing Ln == ");
+	test_one(Num::zero(), None);
+	test_one(Num::new(-1, 0), None);
+	test_one(Num::new(-40, -4), None);
+	test_one(Num::new(1, 0), Some(Num::zero()));
+	test_one(Num::E, Some(Num::new(1, 0)));
+	test_one(Num::new(5124151, 0), Some(Num::new(15449475410729269, -15))); // ln(5124151) == 15.449475410729269678456407320185863564245570787943220
+	test_one(Num::new(5, -1), Some(Num::new(-693147180559944, -15))); // actually -0.6931471805599453, but inaccurate so calculates -0.693147180559944
+}
 #[test]
 fn test_floor() {
 	fn test_one(num: Num, expected: Num) {

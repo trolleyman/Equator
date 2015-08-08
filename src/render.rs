@@ -13,7 +13,12 @@ use vis::*;
 use self::Align::*;
 use func::FuncType;
 
-static debug_view_extents: bool = false;
+static mut debug_view_extents: bool = false;
+pub fn toggle_debug_view() {
+	unsafe {
+		debug_view_extents = !debug_view_extents;
+	}
+}
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum FinalAlignment {
@@ -40,13 +45,13 @@ impl Extent {
 			Extent { x0:ex.0, y0:ex.1, x1:ex.2, y1:ex.3 }
 		}
 	}
-	pub fn w(&self) -> f64 {
+	pub const fn w(self) -> f64 {
 		self.x1 - self.x0
 	}
-	pub fn h(&self) -> f64 {
+	pub const fn h(self) -> f64 {
 		self.y1 - self.y0
 	}
-	pub fn enclosing(&self, other: &Extent) -> Extent {
+	pub fn enclosing(self, other: &Extent) -> Extent {
 		Extent{
 			x0: self.x0.min(other.x0), // min x
 			y0: self.y0.min(other.y0), // min y
@@ -54,7 +59,7 @@ impl Extent {
 			y1: self.y1.max(other.y1)  // max y
 		}
 	}
-	pub fn translate(&self, x: f64, y: f64) -> Extent {
+	pub const fn translate(self, x: f64, y: f64) -> Extent {
 		Extent {
 			x0:self.x0 + x,
 			y0:self.y0 + y,
@@ -63,17 +68,26 @@ impl Extent {
 		}
 	}
 	/// Returns if the rectangle contains the point (x, y)
-	pub fn contains(&self, x: f64, y: f64) -> bool {
+	pub const fn contains(self, x: f64, y: f64) -> bool {
 		(x >= self.x0 && x </*=*/ self.x1) && (y >= self.y0 && y </*=*/ self.y1)
 	}
 	
 	/// Splits the extent into two equal sized extents, one on the left, one on the right.
 	/// Returns (left, right)
-	pub fn split_lr(&self) -> (Extent, Extent) {
+	pub fn split_lr(self) -> (Extent, Extent) {
 		let w  = self.w();
 		let l = Extent{x0:self.x0, y0:self.y0, x1:self.x0 + w / 2.0, y1:self.y1};
 		let r = Extent{x0:l.x0   , y0:self.y0, x1:self.x0 + w      , y1:self.y1};
 		(l, r)
+	}
+	
+	/// Splits the extent into two equal sized extents, one on the top, one on the bottom.
+	/// Returns (top, bottom)
+	pub fn split_tb(self) -> (Extent, Extent) {
+		let h  = self.h();
+		let t = Extent{x0:self.x0, y0:self.y0, x1:self.x1, y1:self.y0 + h / 2.0};
+		let b = Extent{x0:self.x0, y0:t.y0   , x1:self.x1, y1:self.y1};
+		(t, b)
 	}
 }
 
@@ -216,7 +230,7 @@ impl<'a> Render<'a> {
 		
 		self.c.identity_matrix();
 		self.c.new_path();
-		if debug_view_extents {
+		if unsafe { debug_view_extents } {
 			for &(ex, _) in self.exts.hitboxes.iter() {
 				self.c.rectangle(ex.x0, ex.y0, ex.w(), ex.h());
 			}
@@ -296,6 +310,7 @@ impl<'a> Render<'a> {
 				self.exts.cursor_extent = None;
 			}
 			
+			// Main rendering block
 			match &expr.borrow().tokens[i] {
 				&VToken::Space => {
 					let cursor_pos = self.cursor.pos;
@@ -531,10 +546,10 @@ impl<'a> Render<'a> {
 		inner_trans_x = inner_trans_x.floor();
 		inner_trans_y = inner_trans_y.floor();
 		self.exts.transform(|ex, is_cursor| {
-			let mut new_ex = ex.translate(inner_trans_x, inner_trans_y);
-			if !is_cursor {
-				new_ex.y0 = orig_y - h + 8.0;
-			}
+			let new_ex = ex.translate(inner_trans_x, inner_trans_y);
+			//if !is_cursor {
+			//	new_ex.y0 = orig_y - h + 8.0;
+			//}
 			new_ex
 		});
 		
@@ -619,7 +634,6 @@ impl<'a> Render<'a> {
 		self.c.new_path();
 		let before_num = self.exts.get_state();
 		let mut num_extent = self.path_expr(num.clone());
-		self.exts.push(num_extent, Cursor::new_ex(num.clone(), 0));
 		let after_num  = self.exts.get_state();
 		let num_path = self.c.copy_path();
 		
@@ -627,7 +641,6 @@ impl<'a> Render<'a> {
 		self.c.new_path();
 		let before_den = self.exts.get_state();
 		let mut den_extent = self.path_expr(den.clone());
-		self.exts.push(den_extent, Cursor::new_ex(den.clone(), 0));
 		let after_den  = self.exts.get_state();
 		let den_path = self.c.copy_path();
 		
@@ -649,8 +662,6 @@ impl<'a> Render<'a> {
 		let line_extent = Extent{x0:x, y0:y-1.0, x1:x + line_w, y1:y};
 		let full_extent = num_extent.enclosing(&den_extent).enclosing(&line_extent);
 		
-		
-		
 		self.c.new_path();
 		self.c.save();
 		self.c.append_path(&orig_path);
@@ -662,7 +673,42 @@ impl<'a> Render<'a> {
 		self.c.append_path(&den_path);
 		self.c.restore();
 		self.c.move_to(orig_x + line_w + 2.0, orig_y);
-		//self.exts.push(den_extent, Cursor::new_ex(num.clone(), 0));
+		
+		{
+			// Push broad extents allowing user to click anywhere on the top of the fraction to move the cursor there.
+			let mut tot = num_extent.enclosing(&den_extent);
+			tot.x0 -= 1.0;
+			tot.x1 += 1.0;
+			let (mut top, mut bot) = tot.split_tb();
+			top.y1 = line_extent.y0;
+			bot.y0 = line_extent.y0;
+			let (tl, tr) = top.split_lr();
+			let (bl, br) = bot.split_lr();
+			
+			self.exts.push(tl, Cursor::new_ex(num.clone(), 0));
+			self.exts.push(tr, Cursor::new_ex(num.clone(), num.borrow().tokens.len()));
+			
+			self.exts.push(bl, Cursor::new_ex(den.clone(), 0));
+			self.exts.push(br, Cursor::new_ex(den.clone(), den.borrow().tokens.len()));
+			
+			// And now the side extents, allowing the user to select before and after the fraction.
+			let l = Extent{x0:line_extent.x0 - 2.0, y0:top.y0, x1:top.x0, y1:bot.y1};
+			let r = Extent{x0:top.x1, y0:top.y0, x1:line_extent.x1 + 2.0, y1:bot.y1};
+			
+			match num.borrow().parent {
+				Some(ref weak) => match weak.upgrade() {
+					Some(ref parent) => match find_vexpr(&num, &parent) {
+						Some((i, _)) => {
+							self.exts.push(l, Cursor::new_ex(parent.clone(), i));
+							self.exts.push(r, Cursor::new_ex(parent.clone(), i + 1));
+						},
+						None => {},
+					},
+					None => {},
+				},
+				None => {},
+			}
+		}
 		
 		full_extent
 	}

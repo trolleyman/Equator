@@ -288,6 +288,9 @@ impl Editor {
 				if com::debug_print_stage3 { println!("command debug printing stage 3 (calculation) on."); 
 				} else {                     println!("command debug printing stage 3 (calculation) off."); }
 			},
+			key::F4 => {
+				render::toggle_debug_view();
+			},
 			key::Delete => {self.cursor.delete();},
 			key::BackSpace => {self.cursor.backspace();},
 			_ => {
@@ -344,6 +347,12 @@ impl Editor {
 		}
 		
 		self.cursor = selection.clone();
+		
+		if dirty == true {
+			println!("mouse click: cursor moved");
+		} else {
+			println!("mouse click: cursor not moved");
+		}
 		
 		dirty
 	}

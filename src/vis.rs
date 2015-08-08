@@ -84,6 +84,11 @@ impl VExpr {
 		}
 	}
 }
+impl Display for VExpr {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		display_vexpr(self.to_ref(), &None, f)
+	}
+}
 
 pub fn display_vexpr<T: Write>(ex: VExprRef, cursor_opt: &Option<edit::Cursor>, buf: &mut T) -> fmt::Result {
 	let cursor = match cursor_opt {
