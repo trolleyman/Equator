@@ -545,7 +545,7 @@ impl<'a> Render<'a> {
 		let (mut inner_trans_x, mut inner_trans_y) = align(&inner_extents, x + start_w - (scale - 2.0) * 3.0, inner_y_bot, TopRight);
 		inner_trans_x = inner_trans_x.floor();
 		inner_trans_y = inner_trans_y.floor();
-		self.exts.transform(|ex, is_cursor| {
+		self.exts.transform(|ex, _| {
 			let new_ex = ex.translate(inner_trans_x, inner_trans_y);
 			//if !is_cursor {
 			//	new_ex.y0 = orig_y - h + 8.0;
