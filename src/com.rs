@@ -1,6 +1,6 @@
 /// Module for turning the equation into commands
 use std::collections::HashMap;
-use std::fmt::Write;
+use std::fmt::{Display, Formatter, Write, self};
 use consts::*;
 use vis::*;
 use func::*;
@@ -110,6 +110,14 @@ impl Command {
 		}
 	}
 }
+impl Display for Command {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		match self {
+			&Com::Num(n) => write!(f, "Num({})", n),
+			_ => write!(f, "{:?}", self),
+		}
+	}
+}
 
 /// Holds state
 /// e.g. stack, variable states.
@@ -201,7 +209,7 @@ impl VM {
 				}
 				stack_str.trim();
 				
-				println!("{: <12} | {}", format!("{:?}", com), stack_str);
+				println!("{: <12} | {}", format!("{}", com), stack_str);
 			}
 			i += 1;
 		}
