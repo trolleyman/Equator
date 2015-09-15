@@ -73,7 +73,7 @@ impl Command {
 	}
 	pub fn prescedence(&self) -> Option<u32> {
 		match self {
-			&Com::Pow => Some(1),
+			&Com::Pow => Some(4),
 			&Com::Add | &Com::Sub => Some(2),
 			&Com::Mul | &Com::Div => Some(3),
 			&Com::Neg => Some(4),
@@ -495,37 +495,43 @@ fn infix_to_postfix(infix: &[Command]) -> Result<Vec<Command>, ParseError> {
 	}
 	let mut i = 0;
 	for tok in infix {
+		// Read a token.
 		match tok {
-			&Com::Var(_) | &Com::Num(_) => postfix.push(tok.clone()),
-			&Com::Func(_) => stack.push(tok.clone()),
-			&Com::Comma => {
-				loop {
+			&Com::Var(_) | &Com::Num(_) => postfix.push(tok.clone()), // If the token is a number, then add it to the output queue.
+			&Com::Func(_) => stack.push(tok.clone()), // If the token is a function token, then push it onto the stack.
+			&Com::Comma => { // If the token is a function argument separator (e.g., a comma):
+				loop { // Until the token at the top of the stack is a left parenthesis, pop operators off the stack onto the output queue.
 					match stack.pop() {
 						Some(Com::ParenOpen) => { stack.push(Com::ParenOpen); break; },
 						Some(pop) => postfix.push(pop),
-						None => return Err(UnmatchedParen(i)),
+						None => return Err(UnmatchedParen(i)), //If no left parentheses are encountered, either the separator was misplaced or parentheses were mismatched.
 					}
 				}
 			},
-			&Com::ParenOpen => stack.push(Com::ParenOpen),
-			&Com::ParenClose => {
-				// Push all tokens from stack to output until left parenthesis
+			&Com::ParenOpen => stack.push(Com::ParenOpen),  // If the token is a left parenthesis (i.e. "("), then push it onto the stack.
+			&Com::ParenClose => { // If the token is a right parenthesis (i.e. ")"):
+				// Until the token at the top of the stack is a left parenthesis, pop operators off the stack onto the output queue.
 				loop {
-					match stack.pop() {
+					match stack.pop() { // Pop the left parenthesis from the stack, but not onto the output queue.
 						Some(Com::ParenOpen) => break,
-						Some(v) => postfix.push(v),
-						None => return Err(UnmatchedParen(i)),
+						Some(v) => postfix.push(v), // If the token at the top of the stack is a function token, pop it onto the output queue.
+						None => return Err(UnmatchedParen(i)), // If the stack runs out without finding a left parenthesis, then there are mismatched parentheses.
 					}
 				}
 			},
-			_ if tok.is_operator() => {
+			_ if tok.is_operator() => { // If the token is an operator, o1, then:
 				loop {
 					if stack.len() == 0 {
 						break;
 					}
+					// while there is an operator token, o2, at the top of the operator stack, and either
+					//     - o1 is left-associative and its precedence is less than or equal to that of o2, or
+					//     - o1 is right associative, and has precedence less than that of o2,
+					// then pop o2 off the operator stack, onto the output queue;
 					let peek = stack[stack.len() - 1].clone();
 					if peek.is_operator() {
-						if (tok.is_left_associative() && tok.prescedence() <= peek.prescedence()) || (tok.is_right_associative() && tok.prescedence() > peek.prescedence()) {
+						if (tok.is_left_associative() && tok.prescedence() <= peek.prescedence())
+							|| (tok.is_right_associative() && tok.prescedence() < peek.prescedence()) {
 							stack.pop();
 							postfix.push(peek.clone());
 						} else {
@@ -539,7 +545,7 @@ fn infix_to_postfix(infix: &[Command]) -> Result<Vec<Command>, ParseError> {
 			},
 			_ => return Err(IllegalCommand(tok.clone(), i))
 		}
-		if debug_print { println!("{: >15} | {: <18} | {: <18}", tok, commands_to_string(&stack, true), commands_to_string(&postfix, true)); }
+		if debug_print { println!("{: >15} | {: <18} | {: <18}", format!("{}", tok), commands_to_string(&stack, true), commands_to_string(&postfix, true)); }
 		i += 1;
 	}
 	while stack.len() > 0 {
