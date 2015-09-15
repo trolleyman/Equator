@@ -40,6 +40,20 @@ pub enum VToken {
 	Func(FuncType, VExprRef),
 }
 impl VToken {
+	pub fn from_char(c: char) -> VToken {
+		if c.is_digit(10) {
+			VToken::Digit(c)
+		} else {
+			match c {
+				'+'            => VToken::Op(OpType::Add),
+				'-' | CHAR_SUB => VToken::Op(OpType::Sub),
+				'*' | CHAR_MUL => VToken::Op(OpType::Mul),
+				'/' | CHAR_DIV => VToken::Op(OpType::Div),
+				_ => VToken::Char(c)
+			}
+		}
+	}
+	
 	pub fn get_inner_expr(&self) -> Box<[VExprRef]> {
 		match self {
 			&Pow(ref ex) | &Func(_, ref ex) => box [ex.clone()],

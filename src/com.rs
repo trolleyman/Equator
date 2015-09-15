@@ -134,7 +134,7 @@ impl VM {
 		hm.insert('π', Num::PI);
 		hm.insert('e', Num::E);
 		hm.insert('φ', Num::GOLDEN_RATIO);
-		VM{stack:Vec::new(), vars:hm, num:0, last_result:Err(LastResultNotInitialized)}
+		VM{stack:Vec::new(), vars:hm, num:0, last_result:Err(NoLastResult)}
 	}
 	#[inline(always)]
 	pub fn push(&mut self, v: Num) {
@@ -159,6 +159,7 @@ impl VM {
 	#[inline(always)]
 	pub fn clear_stack(&mut self) {
 		self.stack.clear();
+		self.last_result = Err(ParseError::NoLastResult);
 	}
 	#[inline(always)]
 	pub fn stack_size(&self) -> usize {
@@ -292,6 +293,9 @@ pub static mut debug_print_stage3: bool = false;
 // Changes ex into a vector of commands to execute to get the value of the expression.
 pub fn expr_to_commands(ex: VExprRef) -> Result<Vec<Command>, ParseError> {
 	let mut infix = Vec::new();
+	if ex.borrow().tokens.len() == 0 {
+		return Err(ExpressionEmpty);
+	}
 	try!(expr_to_infix(ex, &mut infix));
 	print!("infix  : ");
 	print_commands(&infix, true);
@@ -411,7 +415,15 @@ fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseErro
 				infix.push(Com::ParenClose);
 			}
 		}
-		if debug_print { println!("{: >18} | {: <25} | {: <18} | {: <20}", commands_to_string(&infix, true), format!("{:?}", tok), format!("{:?}", last_tok), num_buf); }
+		if debug_print {
+			let last = match last_tok {
+				Some(t) => format!("Some({})", t),
+				None    => "None".into(),
+			};
+			
+			println!("{: >18} | {: <25} | {: <18} | {: <20}",
+				commands_to_string(&infix, true), format!("{:?}", tok).as_str(), last, num_buf);
+		}
 		i += 1;
 	}
 	if num_buf.len() >= 1 {
@@ -430,7 +442,7 @@ fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseErro
 	while i < infix.len() {
 		let com_pair = (infix.get(i - 1).unwrap().clone(), infix.get(i).unwrap().clone());
 		if debug_print {
-			println!("|{: <25}, {: <25}| {: <5} i = {}", format!("{:?}", com_pair.0).as_str(), format!("{:?}", com_pair.1).as_str(), should_automul(com_pair.0.clone(), com_pair.1.clone()).ok().unwrap_or(false), i);
+			println!("|{: <25}, {: <25}| {: <5} i = {}", com_pair.0, com_pair.1, should_automul(com_pair.0.clone(), com_pair.1.clone()).ok().unwrap_or(false), i);
 		}
 		
 		match should_automul(com_pair.0, com_pair.1) {
@@ -527,7 +539,7 @@ fn infix_to_postfix(infix: &[Command]) -> Result<Vec<Command>, ParseError> {
 			},
 			_ => return Err(IllegalCommand(tok.clone(), i))
 		}
-		if debug_print { println!("{: >15} | {: <18} | {: <18}", format!("{:?}", tok), commands_to_string(&stack, true), commands_to_string(&postfix, true)); }
+		if debug_print { println!("{: >15} | {: <18} | {: <18}", tok, commands_to_string(&stack, true), commands_to_string(&postfix, true)); }
 		i += 1;
 	}
 	while stack.len() > 0 {

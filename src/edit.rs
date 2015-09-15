@@ -237,9 +237,34 @@ impl Cursor {
 	}
 }
 
+#[derive(Clone, Debug)]
+pub struct Span {
+	pub ex: VExprRef,
+	pub start: usize,
+	pub end: usize,
+}
+
+impl Span {
+	pub fn new(ex: VExprRef, start: usize, end: usize) -> Span {
+		Span{ ex:ex, start:start, end:end }
+	}
+	pub fn contains(&self, cur: &Cursor) -> bool {
+		if is_equal_reference(&self.ex, &cur.ex) {
+			if cur.ex.borrow().tokens.get(cur.pos).is_none() {
+				cur.pos >= self.start && cur.pos <= self.end
+			} else {
+				cur.pos >= self.start && cur.pos < self.end
+			}
+		} else {
+			false
+		}
+	}
+}
+
 pub struct Editor {
 	pub root_ex: VExprRef,
 	pub cursor: Cursor,
+	pub errors: Vec<Span>,
 	pub hitboxes: Box<[(render::Extent, Cursor)]>,
 }
 
@@ -249,17 +274,25 @@ impl Editor {
 		Editor::with_expression(ex, 0)
 	}
 	pub fn with_expression(ex: VExprRef, pos: usize) -> Self {
-		Editor{ root_ex: ex.clone(), cursor: Cursor::new_ex(ex, pos), hitboxes: box [] }
+		Editor{ root_ex: ex.clone(), cursor: Cursor::new_ex(ex, pos), errors: Vec::new(), hitboxes: box [] }
 	}
 	
 	pub fn update_hitboxes(&mut self, new_hbs: Box<[(render::Extent, Cursor)]>) {
 		self.hitboxes = new_hbs;
 	}
 	
+	pub fn update_errors(&mut self) {
+		let mut errs = Vec::new();
+		get_errors(&self.root_ex, &mut errs);
+		self.errors = errs;
+	}
+	
 	/// Handles the keypress given, inserting the key pressed at the cursor's position.
 	/// Returns true if the key has been handled.
 	pub fn handle_keypress(&mut self, e: &EventKey) -> bool {
-		let mut unhandled = false;
+		let mut dirty_exp = false;
+		let mut dirty_gui = true;
+		
 		match e.keyval {
 			key::Left => {
 				self.cursor.move_left();
@@ -291,20 +324,32 @@ impl Editor {
 			key::F4 => {
 				render::toggle_debug_view();
 			},
-			key::Delete => {self.cursor.delete();},
-			key::BackSpace => {self.cursor.backspace();},
+			key::Delete => {
+				self.cursor.delete();
+				dirty_exp = true;
+			},
+			key::BackSpace => {
+				self.cursor.backspace();
+				dirty_exp = true;
+			},
+			key::Return => {
+				gui::do_calc();
+				dirty_exp = false;
+			}
 			_ => {
 				if let Some(c) = gdk::keyval_to_unicode(e.keyval) {
-					unhandled = !self.insert_char(c);
+					dirty_exp = self.insert_char(c);
 				} else {
-					unhandled = true;
+					dirty_gui = false;
 				}
 			}
 		}
-		if !unhandled {
+		if dirty_exp {
 			gui::dirty_expression();
+		} else if dirty_gui {
+			gui::dirty_gui();
 		}
-		return !unhandled;
+		return dirty_exp || dirty_gui;
 	}
 	
 	/// Inserts the token at `self.pos`.
@@ -624,3 +669,87 @@ impl Editor {
 		Ok(s)
 	}
 }
+
+fn get_errors(ex: &VExprRef, errs: &mut Vec<Span>) {
+	// If empty, error
+	if ex.borrow().tokens.len() == 0 {
+		errs.push(Span::new(ex.clone(), 0, 0));
+		return;
+	}
+	
+	// Check each operator for valid inputs
+	let mut brackets: Vec<usize> = Vec::with_capacity(16);
+	let tokens = &ex.borrow().tokens;
+	let mut i = 0;
+	while i < tokens.len() {
+		// Check inner expressions for errors too
+		if tokens[i].has_inner_expr() {
+			for ex in tokens[i].get_inner_expr().iter() {
+				get_errors(ex, errs);
+			}
+		}
+		
+		match &tokens[i] {
+			&VToken::Op(_) => {
+				// Check the operator is valid at that position
+				if i == 0 || !is_token_term_left(&tokens[i - 1]) || i == tokens.len() - 1 || !is_token_term_right(&tokens[i + 1]) {
+					errs.push(Span::new(ex.clone(), i, i + 1));
+				}
+			},
+			&VToken::Pow(_) => {
+				// Check that there is a valid token before the token
+				if i == 0 || !is_token_term_left(&tokens[i - 1]) {
+					// Error
+					errs.push(Span::new(ex.clone(), i, i + 1));
+				}
+			},
+			&VToken::Char('(') => {
+				brackets.push(i);
+			},
+			&VToken::Char(')') => {
+				match brackets.pop() {
+					Some(_) => {},
+					None => {
+						errs.push(Span::new(ex.clone(), i, i + 1));
+					}
+				}
+			},
+			_ => {},
+		}
+		i += 1
+	}
+	
+	for pos in brackets.into_iter() {
+		errs.push(Span::new(ex.clone(), pos, pos + 1));
+	}
+}
+
+fn is_token_term_left(t: &VToken) -> bool {
+	match t {
+		&VToken::Space | &VToken::Char(')') | &VToken::Digit(_) | &VToken::Pow(_)
+			| &VToken::Frac(_, _) | &VToken::Root(_, _) | &VToken::Func(_, _) => true,
+		&VToken::Char(ref c) if *c != '(' => true,
+		&VToken::Op(_) => false,
+		_ => false,
+	}
+}
+fn is_token_term_right(t: &VToken) -> bool {
+	match t {
+		&VToken::Space | &VToken::Char('(') | &VToken::Digit(_) | &VToken::Pow(_)
+			| &VToken::Frac(_, _) | &VToken::Root(_, _) | &VToken::Func(_, _) => true,
+		&VToken::Char(ref c) if *c != ')' => true,
+		&VToken::Op(_) => false,
+		_ => false,
+	}
+}
+
+/*pub enum VToken {
+	Space,
+	Char(char),
+	Digit(char),
+	Op(OpType),
+	Pow(VExprRef),
+	Frac(VExprRef, VExprRef), // (numerator, denominator)
+	Root(VExprRef, VExprRef),
+	Func(FuncType, VExprRef),
+}*/

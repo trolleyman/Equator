@@ -50,9 +50,7 @@ pub fn get_vm() -> &'static mut com::VM {
 	}
 }
 
-fn main() {
-	num::num_test();
-	
+fn main() {	
 	match gtk::init() {
 		Err(_) => panic!("GTK could not be initialized"),
 		_ => {}

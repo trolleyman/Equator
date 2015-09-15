@@ -9,7 +9,7 @@ use gdk::{key, self, EventType};
 use cairo::Context;
 
 use edit::Editor;
-use render::{Render, Extent};
+use render::{Render, Extent, render_result};
 use com::*;
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
@@ -44,11 +44,27 @@ static mut shift_btn_ptr: *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget
 static mut ctrl_btn_ptr : *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget;
 static mut store_btn_ptr: *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget;
 
+// The expression has changed - flush the output and queue a redraw
+// Also check the equation for errors...
 pub fn dirty_expression() {
 	println!("=== DIRTY EXPRESSION ===");
 	::get_window().queue_draw();
+	::get_editor().update_errors();
 	::get_editor().print();
 	::get_vm().clear_stack();
+}
+
+// Actually do the calculation of the current equation with the caching of the equation in history
+pub fn do_calc() {
+	println!("=== CALCULATING EQUATION ===");
+	::get_window().queue_draw();
+	::get_editor().update_errors();
+	::get_editor().print();
+	::get_vm().clear_stack();
+	
+	if ::get_editor().errors.len() != 0 {
+		println!("error(s) found: {:?}", ::get_editor().errors);
+	}
 	
 	let res = match expr_to_commands(::get_editor().root_ex.clone()) {
 		Ok(commands) => ::get_vm().get_result(&commands),
@@ -60,6 +76,7 @@ pub fn dirty_expression() {
 	}
 }
 
+// The GUI has changed - queue a redraw buttons
 pub fn dirty_gui() {
 	println!("=== DIRTY GUI ===");
 	::get_window().queue_draw();
@@ -110,6 +127,23 @@ pub fn init_gui() {
 		da.grab_focus();
 		eb.add(&da);
 		da_frame.add(&eb);
+	}
+	
+	let res_frame = Frame::new(None).unwrap();
+	{
+		let da = DrawingArea::new().unwrap();
+		da.set_size_request(-1, 50);
+		da.set_vexpand(false);
+		da.set_hexpand(true);
+		da.connect_draw(|w: Widget, c: Context| {
+			let (alloc_w, alloc_h) = (w.get_allocated_width(), w.get_allocated_height());
+			
+			render_result(&c, ::get_vm().get_last_result(), alloc_w as f64, alloc_h as f64);
+			
+			Inhibit(false)
+		});
+		da.set_can_focus(false);
+		res_frame.add(&da);
 	}
 	
 	let var_frame = Frame::new(Some("Variables")).unwrap();
@@ -166,8 +200,9 @@ pub fn init_gui() {
 	
 	// Add
 	main_grid.attach(&da_frame   , 0, 0, 1, 1);
-	main_grid.attach(&var_frame  , 1, 0, 1, 1);
-	main_grid.attach(&button_grid, 0, 1, 2, 1);
+	main_grid.attach(&res_frame  , 0, 1, 1, 1);
+	main_grid.attach(&var_frame  , 1, 0, 1, 2);
+	main_grid.attach(&button_grid, 0, 2, 2, 1);
 	
 	win.add(&main_grid);
 	//da_frame.grab_focus();

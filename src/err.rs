@@ -17,7 +17,8 @@ pub enum ParseError {
 	IllegalCommand(com::Command, usize),
 	IllegalToken(vis::VToken, edit::Cursor),
 	UnmatchedParen(usize),
-	LastResultNotInitialized,
+	ExpressionEmpty,
+	NoLastResult,
 }
 
 impl Display for ParseError {
@@ -41,7 +42,8 @@ impl Display for ParseError {
 				write!(f, "illegal token ({:?} at {} in expression `{}`)", tok, cursor.pos, s)
 			},
 			&UnmatchedParen(ref pos)               => write!(f, "unmatched parenthesis encountered at {}", pos),
-			&LastResultNotInitialized              => write!(f, "last result not initialized"),
+			&ExpressionEmpty                       => write!(f, "expression empty"),
+			&NoLastResult                          => write!(f, "no last result calculated"),
 		}
 	}
 }

@@ -8,7 +8,9 @@ use cairo::enums::FontWeight;
 use cairo::enums::HintStyle;
 use cairo::LineCap;
 
-use edit::{Editor, Cursor};
+use edit::{Editor, Cursor, Span};
+use num::Num;
+use err::ParseError;
 use vis::*;
 use self::Align::*;
 use func::FuncType;
@@ -18,16 +20,6 @@ pub fn toggle_debug_view() {
 	unsafe {
 		debug_view_extents = !debug_view_extents;
 	}
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum FinalAlignment {
-	Central, // Central
-	Equals,  // Central, with = in the middle
-	Debug    // Eqn in top left, with 15 pix margin
-}
-const fn get_final_alignment() -> FinalAlignment {
-	FinalAlignment::Equals
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -95,38 +87,47 @@ const INIT_FONT_SIZE: f64 = 24.0;
 
 #[derive(Copy, Clone)]
 pub struct ExtentState {
-	pub len: usize,
+	pub hit_len: usize,
+	pub error_len: usize,
 	pub cursor_set: bool,
 }
 pub struct Extents {
-	pub states: Vec<ExtentState>,
-	pub hitboxes: Vec<(Extent, Cursor)>, // Hitboxes
+	pub states: Vec<ExtentState>, // Keep track of how much to translate the extents by
+	pub hitboxes: Vec<(Extent, Cursor)>,
+	pub errors: Vec<Extent>,
 	pub cursor_extent: Option<Extent>
 }
 impl Extents {
 	pub fn new() -> Extents {
-		Extents { states: Vec::new(), hitboxes: Vec::new(), cursor_extent: None }
+		Extents { states: Vec::new(), hitboxes: Vec::new(), errors: Vec::new(), cursor_extent: None }
 	}
 	pub fn reset(&mut self) {
 		self.states.clear();
 		self.hitboxes.clear();
+		self.errors.clear();
 		self.cursor_extent = None;
 	}
 	pub fn get_state(&self) -> ExtentState {
-		ExtentState{ len:self.hitboxes.len(), cursor_set: self.cursor_extent.is_some() }
+		ExtentState{ hit_len: self.hitboxes.len(), error_len: self.errors.len(), cursor_set: self.cursor_extent.is_some() }
 	}
 	pub fn push_state(&mut self) {
 		let state = self.get_state();
 		self.states.push(state);
 	}
+	#[inline]
 	pub fn push(&mut self, extent: Extent, cursor: Cursor) {
 		self.hitboxes.push((extent, cursor));
 	}
+	#[inline]
+	pub fn push_error(&mut self, extent: Extent) {
+		self.errors.push(extent);
+	}
 	pub fn pop_state(&mut self) {
 		let prev_state = match self.states.pop() { Some(v) => v, _ => { println!("error: mismatching states"); return; } };
-		self.hitboxes.truncate(prev_state.len);
+		self.hitboxes.truncate(prev_state.hit_len);
+		self.errors.truncate(prev_state.error_len);
 		
-		if !prev_state.cursor_set && self.cursor_extent.is_some() {
+		if !prev_state.cursor_set {
 			self.cursor_extent = None;
 		}
 	}
@@ -136,8 +137,11 @@ impl Extents {
 			// println!("translated cursor: {}, {}", x, y);
 		}
 		
-		for i in from.len..to.len {
+		for i in from.hit_len..to.hit_len {
 			self.hitboxes[i].0 = self.hitboxes[i].0.translate(x, y);
+		}
+		for i in from.error_len..to.error_len {
+			self.errors[i] = self.errors[i].translate(x, y);
 		}
 	}
 	pub fn translate(&mut self, x:f64, y:f64) {
@@ -152,8 +156,11 @@ impl Extents {
 			self.cursor_extent = self.cursor_extent.map(|ex| f(ex, true));
 		}
 		
-		for i in from.len..to.len {
+		for i in from.hit_len..to.hit_len {
 			self.hitboxes[i].0 = f(self.hitboxes[i].0, false);
+		}
+		for i in from.error_len..to.error_len {
+			self.errors[i] = f(self.errors[i], false);
 		}
 	}
 	pub fn transform<F>(&mut self, f: F) where F: Fn(Extent, bool) -> Extent {
@@ -171,11 +178,12 @@ pub struct Render<'a> {
 	pub prev_extent: Option<Extent>,
 	pub root_ex: VExprRef,
 	pub cursor: Cursor,
+	pub errors: Vec<Span>,
 }
 
 impl<'a> Render<'a> {
 	pub fn new(c: &'a Context, ed: &Editor) -> Render<'a> {
-		Render {exts: Extents::new(), c: c, prev_extent: None, root_ex: ed.root_ex.clone(), cursor: ed.cursor.clone()}
+		Render {exts: Extents::new(), c: c, prev_extent: None, root_ex: ed.root_ex.clone(), cursor: ed.cursor.clone(), errors: ed.errors.clone() }
 	}
 	
 	#[allow(unused_variables)]
@@ -193,36 +201,19 @@ impl<'a> Render<'a> {
 		
 		self.exts.push_state();
 		let root_clone = self.root_ex.clone();
-		let left_extent = self.path_expr(root_clone);
-		
-		// Now path the ' = 12.512' or whatever if there is a result, else path ' = ?'
-		let ret = ::get_vm().get_last_result();
-		let s = match ret {
-			Ok(val) => {
-				format!("{}", val)
-			},
-			Err(_)  => "?".to_string(),
-		};
-		self.exts.push_state();
-		
-		let (x_before_eq, _) = self.c.get_current_point();
-		let mut right_extent = self.path_str(" = ");
-		let (x_after_eq, _) = self.c.get_current_point();
-		let x_mid = ((x_before_eq + x_after_eq) / 2.0).floor();
-		right_extent = right_extent.enclosing(&self.path_str(&s));
-		
-		let full_extent = left_extent.enclosing(&right_extent);
-		
-		self.exts.pop_state();
+		let full_extent = self.path_expr(root_clone);
 		
 		let path = self.c.copy_path();
 		
 		// === ALIGN ===
-		let (mut x, mut y) = match get_final_alignment() {
+		let (mut x, mut y) = align(&full_extent, alloc_w/2.0, alloc_h/2.0, Mid); // Central
+		//let (mut x, mut y) = align(&full_extent, alloc_w - 10.0 alloc_h/2.0, MidRight); // Right
+		
+		/*let (mut x, mut y) = match get_final_alignment() {
 			FinalAlignment::Central => align(&full_extent, alloc_w/2.0, alloc_h/2.0, Mid),
 			FinalAlignment::Equals  => align(&Extent{x0:x_mid, x1:x_mid, y0:full_extent.y0, y1:full_extent.y1}, alloc_w/2.0, alloc_h/2.0, Mid),
 			FinalAlignment::Debug   => align(&full_extent, 30.0, 30.0, BotRight),
-		};
+		};*/
 		
 		x = x.floor();
 		y = y.floor();
@@ -239,6 +230,16 @@ impl<'a> Render<'a> {
 			self.c.set_line_cap(LineCap::Square);
 			self.c.stroke();
 		}
+		
+		// Stroke errors
+		self.c.new_path();
+		for &ex in self.exts.errors.iter() {
+			self.c.rectangle(ex.x0, ex.y0, ex.w(), ex.h());
+		}
+		self.c.set_source_rgb(1.0, 0.0, 0.0);
+		self.c.set_line_width(1.0);
+		self.c.set_line_cap(LineCap::Round);
+		self.c.stroke();
 		
 		self.c.translate(x, y);
 		self.c.new_path();
@@ -300,9 +301,8 @@ impl<'a> Render<'a> {
 		}
 		
 		// loop through the tokens in the array
-		let mut cursor_i: i64 = -1;
+		let mut cursor_i: isize = 0;
 		for i in 0..expr.borrow().tokens.len() {
-			cursor_i += 1;
 			if cursor_in_ex && self.cursor.pos == cursor_i as usize {
 				self.exts.cursor_extent = Some(get_cursor_extent(self.c.get_current_point(), self.get_scale()));
 			}
@@ -453,6 +453,15 @@ impl<'a> Render<'a> {
 					self.prev_extent = Some(self.path_frac(num_ex.clone(), den_expr.clone()));
 				},
 			}
+			cursor_i += 1;
+			
+			if is_cursor_in_spans(&self.errors, &Cursor::new_ex(expr.clone(), cursor_i as usize)) {
+				// Push an error extent
+				if let Some(ext) = self.prev_extent {
+					self.exts.push_error(ext);
+				}
+			}
+			
 			full_extent = full_extent.enclosing(&self.prev_extent.unwrap_or(self.box_extent()));
 		}
 		
@@ -488,25 +497,6 @@ impl<'a> Render<'a> {
 		}
 		
 		full_extent
-	}
-
-	fn path_str(&mut self, s: &str) -> Extent {
-		let mut ex = VExpr::new();
-		for chr in s.chars() {
-			if chr.is_digit(10) {
-				ex.tokens.push(VToken::Digit(chr));
-			} else {
-				ex.tokens.push(VToken::Char(chr));
-			}
-		}
-		if !self.c.has_current_point() {
-			self.c.move_to(0.0, 0.0);
-		}
-		let (current_x, current_y) = self.c.get_current_point();
-		
-		let full_extent = Extent{x0:current_x, y0:current_y, x1:current_x, y1:current_y};
-		self.prev_extent = Some(full_extent);
-		self.path_expr(ex.to_ref())
 	}
 
 	fn path_root(&mut self, inner: VExprRef, degree: Option<VExprRef>) -> Extent {
@@ -743,6 +733,53 @@ impl<'a> Render<'a> {
 		self.c.move_to(x + w + 2.0*SPACING, y);
 		Extent{x0:x, y0:y-self.get_ascent(), x1:x + w + 2.0*SPACING, y1:y+self.get_descent()}
 	}
+}
+
+pub fn render_result(c: &Context, res: Result<Num, ParseError>, alloc_w: f64, alloc_h: f64) {
+	let _ = alloc_w;
+	let s = match res {
+		Ok(num) => format!("= {:0.6}", num),
+		Err(ParseError::NoLastResult) => "= ".into(),
+		Err(e)  => format!("error: {}", e),
+	};
+	c.select_font_face("CMU Serif", FontSlant::Normal, FontWeight::Normal);
+	c.set_font_size(INIT_FONT_SIZE);
+	c.set_antialias(Antialias::Best);
+	let opt = FontOptions::new();
+	opt.set_antialias(Antialias::Best);
+	opt.set_hint_style(HintStyle::Medium);
+	c.set_font_options(opt);
+	
+	let ext = path_str(c, &s);
+	let (mut x, mut y) = align(&ext, 15.0, alloc_h / 2.0, MidRight);
+	x = x.floor();
+	y = y.floor();
+	let path = c.copy_path();
+	c.new_path();
+	c.translate(x, y);
+	c.append_path(&path);
+	c.set_source_rgb(0.0, 0.0, 0.0);
+	c.fill();
+}
+
+pub fn path_str(c: &Context, s: &str) -> Extent {
+	if !c.has_current_point() {
+		c.move_to(0.0, 0.0);
+	}
+	let (start_x, start_y) = c.get_current_point();
+	c.text_path(s);
+	c.rel_move_to(1.0, 0.0);
+	let (end_x, _) = c.get_current_point();
+	Extent {x0:start_x, y0:start_y-(c.font_extents().ascent), x1:end_x, y1:start_y+(c.font_extents().descent / 4.0)}
+}
+
+fn is_cursor_in_spans(spans: &Vec<Span>, cursor: &Cursor) -> bool {
+	for span in spans.iter() {
+		if span.contains(cursor) {
+			return true;
+		}
+	}
+	false
 }
 
 #[allow(dead_code)]
