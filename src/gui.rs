@@ -80,6 +80,7 @@ pub fn do_calc() {
 pub fn dirty_gui() {
 	println!("=== DIRTY GUI ===");
 	::get_window().queue_draw();
+	::get_editor().print();
 }
 
 pub fn init_gui() {

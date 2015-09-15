@@ -727,9 +727,9 @@ fn get_errors(ex: &VExprRef, errs: &mut Vec<Span>) {
 fn is_token_term_left(t: &VToken) -> bool {
 	match t {
 		&VToken::Space | &VToken::Char(')') | &VToken::Digit(_) | &VToken::Pow(_)
-			| &VToken::Frac(_, _) | &VToken::Root(_, _) | &VToken::Func(_, _) => true,
+			| &VToken::Frac(_, _) | &VToken::Root(_, _)  => true,
 		&VToken::Char(ref c) if *c != '(' => true,
-		&VToken::Op(_) => false,
+		&VToken::Op(_) | &VToken::Func(_, _) => false,
 		_ => false,
 	}
 }
