@@ -8,7 +8,7 @@ use cairo::enums::FontWeight;
 use cairo::enums::HintStyle;
 use cairo::LineCap;
 
-use edit::{Editor, Cursor, Span};
+use edit::*;
 use num::Num;
 use err::ParseError;
 use vis::*;
@@ -771,15 +771,6 @@ pub fn path_str(c: &Context, s: &str) -> Extent {
 	c.rel_move_to(1.0, 0.0);
 	let (end_x, _) = c.get_current_point();
 	Extent {x0:start_x, y0:start_y-(c.font_extents().ascent), x1:end_x, y1:start_y+(c.font_extents().descent / 4.0)}
-}
-
-fn is_cursor_in_spans(spans: &Vec<Span>, cursor: &Cursor) -> bool {
-	for span in spans.iter() {
-		if span.contains(cursor) {
-			return true;
-		}
-	}
-	false
 }
 
 #[allow(dead_code)]
