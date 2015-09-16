@@ -168,6 +168,107 @@ pub fn display_vexpr<T: Write>(ex: VExprRef, cursor_opt: &Option<edit::Cursor>, 
 	}
 	Ok(())
 }
+pub fn display_vexpr_errors<T: Write, V: Write>(ex: VExprRef, cursor_opt: &Option<edit::Cursor>, errors: &[edit::Span], buf: &mut T, e_buf: &mut V) -> fmt::Result {
+	let cursor = match cursor_opt {
+		&Some(ref c) => c.clone(),
+		&None        => edit::Cursor::new()
+	};
+	let cursor_in_ex: bool = is_equal_reference(&ex, &cursor.ex);
+	
+	let len = ex.borrow().tokens.len();
+	for i in 0..len {
+		let err = edit::is_cursor_in_spans(&errors, &edit::Cursor::new_ex(ex.clone(), i));
+		if cursor_in_ex && cursor.pos == i {
+			// Print cursor
+			try!(write!(buf, "|"));
+			try!(write!(e_buf, " "));
+		}
+		
+		match ex.borrow().tokens[i].clone() {
+			VToken::Space => {
+				try!(write!(buf, "{}", CHAR_BOX));
+				if err { try!(write!(e_buf, "~"));
+				} else { try!(write!(e_buf, " ")); }
+			},
+			VToken::Digit(c) | VToken::Char(c) => {
+				try!(write!(buf, "{}", c));
+				if err { try!(write!(e_buf, "~"));
+				} else { try!(write!(e_buf, " ")); }
+			},
+			VToken::Op(op) => {
+				try!(write!(buf, "{}", op));
+				if err { try!(write!(e_buf, "~"));
+				} else { try!(write!(e_buf, " ")); }
+			},
+			VToken::Pow(inner_ex_ref) => {
+				// Recursive stuff yay!
+				try!(write!(buf, "^("));
+				if err { try!(write!(e_buf, "~~"));
+				} else { try!(write!(e_buf, "  ")); }
+				try!(display_vexpr(inner_ex_ref, &Some(cursor.clone()), buf));
+				try!(write!(buf, ")"));
+				if err { try!(write!(e_buf, "~"));
+				} else { try!(write!(e_buf, " ")); }
+			},
+			VToken::Func(func_type, inner_ex_ref) => {
+				let s = format!("{}", func_type);
+				try!(write!(buf, " {}(", s));
+				for _ in 0..s.len() + 2 {
+					if err { try!(write!(e_buf, "~"));
+					} else { try!(write!(e_buf, " ")); }
+				}
+				try!(display_vexpr(inner_ex_ref, &Some(cursor.clone()), buf));
+				try!(write!(buf, ")"));
+				if err { try!(write!(e_buf, "~"));
+				} else { try!(write!(e_buf, " ")); }
+			}
+			VToken::Root(degree_ex, inner_ex) => {
+				try!(write!(buf, " root("));
+				if err { try!(write!(e_buf, "~~~~~~"));
+				} else { try!(write!(e_buf, "      ")); }
+				try!(display_vexpr(degree_ex, &Some(cursor.clone()), buf));
+				try!(write!(buf, ", "));
+				if err { try!(write!(e_buf, "~~"));
+				} else { try!(write!(e_buf, "  ")); }
+				try!(display_vexpr(inner_ex, &Some(cursor.clone()), buf));
+				try!(write!(buf, ")"));
+				if err { try!(write!(e_buf, "~"));
+				} else { try!(write!(e_buf, " ")); }
+			}
+			VToken::Frac(num_ex, den_ex) => {
+				try!(write!(buf, "(("));
+				if err { try!(write!(e_buf, "~~"));
+				} else { try!(write!(e_buf, "  ")); }
+				try!(display_vexpr(num_ex, &Some(cursor.clone()), buf));
+				try!(write!(buf, ")÷("));
+				if err { try!(write!(e_buf, "~~~"));
+				} else { try!(write!(e_buf, "   ")); }
+				try!(display_vexpr(den_ex, &Some(cursor.clone()), buf));
+				try!(write!(buf, "))"));
+				if err { try!(write!(e_buf, "~~"));
+				} else { try!(write!(e_buf, "  ")); }
+			}
+		}
+	}
+
+	let err = edit::is_cursor_in_spans(&errors, &edit::Cursor::new_ex(ex.clone(), 0));
+	if cursor_in_ex && cursor.pos == ex.borrow().tokens.len() {
+		// Print cursor
+		if len == 0 {
+			try!(write!(buf, "{}", CHAR_HLBOX));
+			if err { try!(write!(e_buf, "~"));
+			} else { try!(write!(e_buf, " ")); }
+		} else {
+			try!(write!(buf, "|"));
+			try!(write!(e_buf, " "));
+		}
+	} else if len == 0 {
+		try!(write!(buf, "{}", CHAR_BOX));
+		if err { try!(write!(e_buf, "~"));
+		} else { try!(write!(e_buf, " ")); }
+	}
+	Ok(())
+}
 
 pub fn is_equal_reference<T>(ref1: &Rc<RefCell<T>>, ref2: &Rc<RefCell<T>>) -> bool {
 	unsafe { ref1.as_unsafe_cell().get() == ref2.as_unsafe_cell().get() }

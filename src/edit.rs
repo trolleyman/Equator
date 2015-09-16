@@ -658,15 +658,19 @@ impl Editor {
 	/// Debug prints the editor's state to the screen.
 	pub fn print(&self) {
 		match self.to_string() {
-			Ok(s)  => println!("expr   : {}", s),
+			Ok((s, e))  => {
+				println!("expr   : {}", s);
+				println!("         {}", e);
+			},
 			Err(e) => println!("expr   : {:?}", e),
 		}
 	}
 	/// Gets the editor's expression as a string.
-	pub fn to_string(&self) -> Result<String, fmt::Error> {
+	pub fn to_string(&self) -> Result<(String, String), fmt::Error> {
 		let mut s = String::new();
-		try!(display_vexpr(self.root_ex.clone(), &Some(self.cursor.clone()), &mut s));
-		Ok(s)
+		let mut e = String::new();
+		try!(display_vexpr_errors(self.root_ex.clone(), &Some(self.cursor.clone()), &self.errors, &mut s, &mut e));
+		Ok((s, e))
 	}
 }
 
@@ -724,12 +728,21 @@ fn get_errors(ex: &VExprRef, errs: &mut Vec<Span>) {
 	}
 }
 
+pub fn is_cursor_in_spans(spans: &[Span], cursor: &Cursor) -> bool {
+	for span in spans.iter() {
+		if span.contains(cursor) {
+			return true;
+		}
+	}
+	false
+}
+
 fn is_token_term_left(t: &VToken) -> bool {
 	match t {
 		&VToken::Space | &VToken::Char(')') | &VToken::Digit(_) | &VToken::Pow(_)
-			| &VToken::Frac(_, _) | &VToken::Root(_, _) | &VToken::Func(_, _) => true,
+			| &VToken::Frac(_, _) | &VToken::Root(_, _)  => true,
 		&VToken::Char(ref c) if *c != '(' => true,
-		&VToken::Op(_) => false,
+		&VToken::Op(_) | &VToken::Func(_, _) => false,
 		_ => false,
 	}
 }
