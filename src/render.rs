@@ -150,20 +150,22 @@ impl Extents {
 		
 		self.translate_from_to(last_state, this_state, x, y);
 	}
-	/// bool is true when it is transforming the cursor
-	pub fn transform_from_to<F>(&mut self, from: ExtentState, to: ExtentState, f: F) where F: Fn(Extent, bool) -> Extent {
+	/// u32 is 0 when it is transforming the cursor
+	//         1 when it is transforming a hitbox
+	//         2 when it is transforming an error box
+	pub fn transform_from_to<F>(&mut self, from: ExtentState, to: ExtentState, f: F) where F: Fn(Extent, u32) -> Extent {
 		if !from.cursor_set && to.cursor_set {
-			self.cursor_extent = self.cursor_extent.map(|ex| f(ex, true));
+			self.cursor_extent = self.cursor_extent.map(|ex| f(ex, 0));
 		}
 		
 		for i in from.hit_len..to.hit_len {
-			self.hitboxes[i].0 = f(self.hitboxes[i].0, false);
+			self.hitboxes[i].0 = f(self.hitboxes[i].0, 1);
 		}
 		for i in from.error_len..to.error_len {
-			self.errors[i] = f(self.errors[i], false);
+			self.errors[i] = f(self.errors[i], 2);
 		}
 	}
-	pub fn transform<F>(&mut self, f: F) where F: Fn(Extent, bool) -> Extent {
+	pub fn transform<F>(&mut self, f: F) where F: Fn(Extent, u32) -> Extent {
 		let last_state = match self.states.pop() { Some(v) => v, _ => { println!("error: mismatching states"); return; } };
 		let this_state = self.get_state();
 		
@@ -370,9 +372,9 @@ impl<'a> Render<'a> {
 					exp_extents.x1 += 2.0;
 					
 					let descent = self.get_descent() / self.get_scale();
-					self.exts.transform(|ex, is_cursor| {
+					self.exts.transform(|ex, typ| {
 						let mut new_ex = ex.translate(x, y);
-						if !is_cursor {
+						if typ == 1 {
 							new_ex.y1 = orig_y + descent;
 						}
 						new_ex
