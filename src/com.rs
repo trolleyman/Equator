@@ -291,7 +291,7 @@ pub static mut debug_print_stage2: bool = false;
 pub static mut debug_print_stage3: bool = false;
 
 // Changes ex into a vector of commands to execute to get the value of the expression.
-pub fn expr_to_commands(ex: VExprRef) -> Result<Vec<Command>, ParseError> {
+/*pub fn expr_to_commands(ex: VExprRef) -> Result<Vec<Command>, Vec<VError>> {
 	let mut infix = Vec::new();
 	if ex.borrow().tokens.len() == 0 {
 		return Err(ExpressionEmpty);
@@ -303,10 +303,10 @@ pub fn expr_to_commands(ex: VExprRef) -> Result<Vec<Command>, ParseError> {
 	print!("postfix: ");
 	print_commands(&postfix, true);
 	Ok(postfix)
-}
+}*/
 
 #[allow(unused_assignments)]
-fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseError> {
+pub fn expr_to_infix(ex: VExprRef, infix: &mut Vec<(Command, Span)>) -> Result<(), Vec<VError>> {
 	let mut num_buf = String::new();
 	
 	let debug_print: bool = unsafe { debug_print_stage1 };
@@ -459,31 +459,31 @@ fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseErro
 	// Check for errors
 	Ok(())
 }
-fn should_automul(left: Command, right: Command) -> Result<bool, ParseError> {
+fn should_automul(left: Command, right: Command) -> Result<bool, ()> {
 	if right == Com::ParenOpen { // TODO: Add some more cases here
 		if let Com::Func(_) = left {
 			return Ok(false);
 		} else if left == Com::Root {
 			return Ok(false);
 		} else if left == Com::Comma {
-			return Err(SyntaxError);
+			return Err(());
 		}
 	}
 	Ok(left.is_left_automul() && right.is_right_automul())
 }
 
-fn parse_num_buf(num_buf: &str, start: &edit::Cursor) -> Result<Command, ParseError> {
+fn parse_num_buf(num_buf: &str, start: &edit::Cursor) -> Result<Command, VError> {
 	// Flush buffer
 	let com = match num_buf.parse() {
 		Ok(v) => Com::Num(v),
-		Err(_) => return Err(NumParseError(start.ex.clone(), start.pos, start.pos + num_buf.len() - 1)),
+		Err(_) => return Err(VError::new(NumParseError, start.ex.clone(), start.pos, start.pos + num_buf.len() - 1)),
 	};
 	
 	Ok(com)
 }
 
 /// What follows is the "shunting yard algorithm" (https://en.wikipedia.org/wiki/Shunting-yard_algorithm)
-fn infix_to_postfix(infix: &[Command]) -> Result<Vec<Command>, ParseError> {
+pub fn infix_to_postfix(infix: &[Command]) -> Result<Vec<Command>, VError> {
 	let mut postfix: Vec<Command> = Vec::new();
 	let mut stack: Vec<Command> = Vec::new();
 	

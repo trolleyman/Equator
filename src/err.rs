@@ -1,41 +1,59 @@
 use std::fmt::{self, Display, Formatter};
 
-pub use self::ParseError::*;
+pub use self::ErrorType::*;
 use com;
-use edit;
 use vis;
 
-#[derive(Debug, Clone)]
-pub enum ParseError {
-	GeneralError,
-	NumParseError(vis::VExprRef, usize, usize), // Expr, from, to
-	SyntaxError,
-	CommandExecuteError(com::Command, usize),
-	StackExhausted(usize),
-	UndefVar(char, usize),
-	IllegalChar(char, usize),
-	IllegalCommand(com::Command, usize),
-	IllegalToken(vis::VToken, edit::Cursor),
-	UnmatchedParen(usize),
-	ExpressionEmpty,
-	NoLastResult,
+#[derive(Clone)]
+pub struct VError {
+	pub error: ErrorType,
+	pub span: vis::Span,
+}
+impl VError {
+	pub fn new(error: ErrorType, ex: VExprRef, start: usize, end: usize) -> VError {
+		VError::from_span(error, vis::Span::new(ex, start, end))
+	}
+	pub fn from_span(error: ErrorType, span: vis::Span) -> VError {
+		VError{ error: error, span: span }
+	}
+}
+impl Display for VError {
+	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+		write!(f, "{}", self.error)
+	}
 }
 
-impl Display for ParseError {
+#[derive(Debug, Clone)]
+pub enum ErrorType {
+	// Compile errors
+	GeneralError,
+	NumParseError,
+	CommandExecuteError,
+	StackExhausted,
+	UndefVar(char),
+	IllegalChar(char),
+	IllegalCommand(com::Command),
+	IllegalToken(vis::VToken),
+	UnmatchedParen,
+	ExpressionEmpty,
+	// Runtime errors
+	
+}
+
+impl Display for ErrorType {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		match self {
-			&GeneralError              => write!(f, "general error"),
-			&NumParseError(_, _, _)    => write!(f, "number parsing error"),
-			&SyntaxError               => write!(f, "syntax error"),
-			&CommandExecuteError(_, _) => write!(f, "command execution error"),
-			&StackExhausted(_)         => write!(f, "stack exhausted"),
-			&UndefVar(ref c, _)        => write!(f, "undefined variable referenced '{}'", c),
-			&IllegalChar(ref c, _)     => write!(f, "illegal character '{}'", c),
-			&IllegalCommand(ref c, _)  => write!(f, "illegal command '{:?}'", c),
-			&IllegalToken(ref tok, _)  => write!(f, "illegal token '{:?}'", tok),
-			&UnmatchedParen(_)         => write!(f, "unmatched parenthesis encountered"),
-			&ExpressionEmpty           => write!(f, "expression empty"),
-			&NoLastResult              => write!(f, "no last result calculated"),
+			&GeneralError          => write!(f, "general error"),
+			&NumParseError         => write!(f, "number parsing error"),
+			&SyntaxError           => write!(f, "syntax error"),
+			&CommandExecuteError   => write!(f, "command execution error"),
+			&StackExhausted        => write!(f, "stack exhausted"),
+			&UndefVar(ref c)       => write!(f, "undefined variable referenced '{}'", c),
+			&IllegalChar(ref c)    => write!(f, "illegal character '{}'", c),
+			&IllegalCommand(ref c) => write!(f, "illegal command '{:?}'", c),
+			&IllegalToken(ref tok) => write!(f, "illegal token '{:?}'", tok),
+			&UnmatchedParen        => write!(f, "unmatched parenthesis encountered"),
+			&ExpressionEmpty       => write!(f, "expression empty"),
 		}
 	}
 }

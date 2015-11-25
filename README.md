@@ -21,6 +21,7 @@ F4 | Toggle debug view
 ## Todo:
 Status | Task
 ------ | -------------
+IMPORTANT | Refactor into a more comprehensible streamlined system. Have a Compiler that compiles source code (VExpr) into Vec<Command> or (in the case of errors) Vec<Span>.
 Todo | Add grapher that can display the equation entered.
 Todo | Add equation 'history' that can be selected.
 Todo | Add 'infinite precision' numbers - surds, fractions, irrational constants and coefficients of these

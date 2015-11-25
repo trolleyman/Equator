@@ -10,7 +10,7 @@ use cairo::LineCap;
 
 use edit::*;
 use num::Num;
-use err::ParseError;
+use err::ErrorType;
 use vis::*;
 use self::Align::*;
 use func::FuncType;
@@ -287,7 +287,7 @@ impl<'a> Render<'a> {
 		let mut full_extent = Extent{x0:current_x, y0:current_y, x1:current_x, y1:current_y};
 		self.prev_extent.unwrap_or(self.box_extent());
 		
-		{ // Replace `^(x)` with `□^(x)`
+		{ // Replace `^(x)` with `□^(x)` and `` with `□`
 			let mut i = 0;
 			let mut toks = &mut expr.borrow_mut().tokens;
 			loop {
@@ -300,10 +300,14 @@ impl<'a> Render<'a> {
 				}
 				i += 1;
 			}
+			
+			if toks.len() == 0 {
+				toks.push(VToken::Space);
+			}
 		}
 		
 		// loop through the tokens in the array
-		let mut cursor_i: isize = 0;
+		let mut cursor_i: usize = 0;
 		for i in 0..expr.borrow().tokens.len() {
 			if cursor_in_ex && self.cursor.pos == cursor_i as usize {
 				self.exts.cursor_extent = Some(get_cursor_extent(self.c.get_current_point(), self.get_scale()));
@@ -313,6 +317,7 @@ impl<'a> Render<'a> {
 			}
 			
 			// Main rendering block
+			let mut inc_cursor_i: usize = 1;
 			match &expr.borrow().tokens[i] {
 				&VToken::Space => {
 					let cursor_pos = self.cursor.pos;
@@ -322,7 +327,7 @@ impl<'a> Render<'a> {
 					}
 					self.exts.push(extent, Cursor::new_ex(expr.clone(), cursor_i as usize));
 					self.prev_extent = Some(extent);
-					cursor_i -= 1;
+					inc_cursor_i = 0;
 				},
 				&VToken::Digit(ref chr) | &VToken::Char(ref chr) => {
 					let (start_x, start_y) = self.c.get_current_point();
@@ -455,8 +460,8 @@ impl<'a> Render<'a> {
 					self.prev_extent = Some(self.path_frac(num_ex.clone(), den_expr.clone()));
 				},
 			}
-			cursor_i += 1;
 			
+			println!("tok {:?} | {}", expr.borrow().tokens[i], cursor_i);
 			if is_cursor_in_spans(&self.errors, &Cursor::new_ex(expr.clone(), cursor_i as usize)) {
 				// Push an error extent
 				if let Some(ext) = self.prev_extent {
@@ -465,6 +470,7 @@ impl<'a> Render<'a> {
 			}
 			
 			full_extent = full_extent.enclosing(&self.prev_extent.unwrap_or(self.box_extent()));
+			cursor_i += inc_cursor_i;
 		}
 		
 		if expr.borrow().tokens.len() != 0 {
@@ -488,14 +494,6 @@ impl<'a> Render<'a> {
 			if cursor_in_ex && self.cursor.pos == expr.borrow().tokens.len() {
 				self.exts.cursor_extent = Some(get_cursor_extent(self.c.get_current_point(), self.get_scale()));
 			}
-		}
-		
-		if expr.borrow().tokens.len() == 0 {
-			let cursor_pos = self.cursor.pos;
-			let box_extent = self.path_box(cursor_in_ex && cursor_pos == 0);
-			full_extent = full_extent.enclosing(&box_extent);
-			self.c.rel_move_to(box_extent.w() - 15.0, 0.0);
-			self.exts.push(box_extent, Cursor::new_ex(expr.clone(), 0));
 		}
 		
 		full_extent

@@ -49,7 +49,7 @@ static mut store_btn_ptr: *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget
 pub fn dirty_expression() {
 	println!("=== DIRTY EXPRESSION ===");
 	::get_window().queue_draw();
-	::get_editor().update_errors();
+	::get_compiler().compile(::get_editor().root_ex.clone());
 	::get_editor().print();
 	::get_vm().clear_stack();
 }
@@ -58,22 +58,12 @@ pub fn dirty_expression() {
 pub fn do_calc() {
 	println!("=== CALCULATING EQUATION ===");
 	::get_window().queue_draw();
-	::get_editor().update_errors();
+	::get_compiler().result();
 	::get_editor().print();
 	::get_vm().clear_stack();
 	
-	if ::get_editor().errors.len() != 0 {
-		println!("error(s) found: {:?}", ::get_editor().errors);
-	}
+	let res = ::get_compiler().result();
 	
-	let res = match expr_to_commands(::get_editor().root_ex.clone()) {
-		Ok(commands) => ::get_vm().get_result(&commands),
-		Err(e) => { println!("parse error: {}", e); return; },
-	};
-	match res {
-		Ok(v)  => println!("result : {}", v),
-		Err(e) => println!("result : error: {}", e),
-	}
 }
 
 // The GUI has changed - queue a redraw buttons
