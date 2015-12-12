@@ -2,7 +2,7 @@ use std::fmt;
 
 use gdk::{key, EventKey, self};
 
-use consts::prelude::*;
+use consts::*;
 use gui;
 use com;
 use render;

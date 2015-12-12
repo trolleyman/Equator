@@ -1,9 +1,10 @@
 use std::fmt::{Display, Formatter};
 use std::fmt::Error;
 
+use decimal::d128;
+
 use consts::*;
 use gui;
-use num::Num;
 
 use self::FuncType::*;
 
@@ -51,14 +52,14 @@ impl Display for FuncType {
 	}
 }
 impl FuncType {
-	pub fn execute(&self, val: Num) -> Option<Num> {
+	pub fn execute(&self, val: d128) -> Option<d128> {
 		let mut v = val;
 		if self.is_trigonometric_in() {
 			// Convert whatever is the current mode to radians
 			v = match gui::get_trig_mode() {
 				gui::TrigMode::Radians  => v,
-				gui::TrigMode::Degrees  => v / 180 * Num::PI,
-				gui::TrigMode::Gradians => v / 200 * Num::PI,
+				gui::TrigMode::Degrees  => v / d128!(180) * D_PI,
+				gui::TrigMode::Gradians => v / d128!(200) * D_PI,
 			};
 		}
 		
@@ -90,8 +91,8 @@ impl FuncType {
 			// Convert whatever is the current mode to radians
 			v = match gui::get_trig_mode() {
 				gui::TrigMode::Radians  => v,
-				gui::TrigMode::Degrees  => v * 180 / Num::PI,
-				gui::TrigMode::Gradians => v * 200 / Num::PI,
+				gui::TrigMode::Degrees  => v * d128!(180) / D_PI,
+				gui::TrigMode::Gradians => v * d128!(200) / D_PI,
 			};
 		}
 		

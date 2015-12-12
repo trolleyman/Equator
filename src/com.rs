@@ -1,12 +1,14 @@
 /// Module for turning the equation into commands
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Write, self};
+
+use decimal::d128;
+
 use consts::*;
 use vis::*;
 use func::*;
 use err::*;
 use edit;
-use num::Num;
 
 #[allow(non_snake_case)]
 mod Com {
@@ -15,7 +17,7 @@ mod Com {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Command {
 	Var(char), // Pushes variable with char identifier to the stack
-	Num(Num), // Pushes literal to the stack
+	Num(d128), // Pushes literal to the stack
 	Add, // A, B => A + B
 	Sub, // A, B => A - B
 	Mul, // A, B => A * B
@@ -305,7 +307,6 @@ pub fn expr_to_commands(ex: VExprRef) -> Result<Vec<Command>, ParseError> {
 	Ok(postfix)
 }
 
-#[allow(unused_assignments)]
 fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseError> {
 	let mut num_buf = String::new();
 	

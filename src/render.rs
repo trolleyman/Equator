@@ -8,8 +8,9 @@ use cairo::enums::FontWeight;
 use cairo::enums::HintStyle;
 use cairo::LineCap;
 
+use decimal::d128;
+
 use edit::*;
-use num::Num;
 use err::ParseError;
 use vis::*;
 use self::Align::*;

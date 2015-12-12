@@ -4,11 +4,14 @@ extern crate gtk;
 extern crate gtk_sys;
 extern crate gdk;
 extern crate cairo;
+#[macro_use]
+extern crate decimal;
 
 use gtk::traits::*;
 use gtk::{Window, WindowType, WindowPosition};
 use gtk::signal::Inhibit;
 
+use std::ptr::null;
 use std::mem::transmute;
 
 pub mod vis;
@@ -19,11 +22,10 @@ pub mod render;
 pub mod com;
 pub mod err;
 pub mod consts;
-pub mod num;
 
-static mut g_window: *mut Window = 0 as *mut Window;
-static mut g_editor: *mut edit::Editor = 0 as *mut edit::Editor;
-static mut g_vm    : *mut com::VM = 0 as *mut com::VM;
+static mut g_window: *mut Window = null();
+static mut g_editor: *mut edit::Editor = null();
+static mut g_vm    : *mut com::VM = null();
 
 pub fn get_window() -> &'static mut Window {
 	unsafe {
@@ -50,7 +52,7 @@ pub fn get_vm() -> &'static mut com::VM {
 	}
 }
 
-fn main() {	
+fn main() {
 	match gtk::init() {
 		Err(_) => panic!("GTK could not be initialized"),
 		_ => {}
