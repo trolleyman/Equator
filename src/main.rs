@@ -1,4 +1,4 @@
-#![feature(convert, box_syntax, str_char, rc_weak, as_unsafe_cell, fmt_flags, const_fn, associated_consts)]
+#![feature(convert, box_syntax, str_char, as_unsafe_cell, const_fn, associated_consts)]
 #![allow(non_upper_case_globals)]
 extern crate gtk;
 extern crate gtk_sys;
@@ -11,9 +11,10 @@ use gtk::traits::*;
 use gtk::{Window, WindowType, WindowPosition};
 use gtk::signal::Inhibit;
 
-use std::ptr::null;
-use std::mem::transmute;
+use std::ptr;
+use std::mem;
 
+pub mod num;
 pub mod vis;
 pub mod edit;
 pub mod func;
@@ -23,9 +24,9 @@ pub mod com;
 pub mod err;
 pub mod consts;
 
-static mut g_window: *mut Window = null();
-static mut g_editor: *mut edit::Editor = null();
-static mut g_vm    : *mut com::VM = null();
+static mut g_window: *mut Window = ptr::null_mut();
+static mut g_editor: *mut edit::Editor = ptr::null_mut();
+static mut g_vm    : *mut com::VM = ptr::null_mut();
 
 pub fn get_window() -> &'static mut Window {
 	unsafe {
@@ -63,12 +64,12 @@ fn main() {
 		g_editor = &mut temp_edit;
 	}
 	
-	let mut temp_win = Window::new(WindowType::TopLevel).expect("could not create window");
+	let mut temp_win = Window::new(WindowType::Toplevel).expect("could not create window");
 	unsafe {
 		g_window = &mut temp_win;
-	
-		let win: &Window = transmute(g_window);
-
+		
+		let win: &Window = mem::transmute(g_window);
+		
 		win.set_title("Equator");
 		win.set_border_width(10);
 		win.set_window_position(WindowPosition::Center);

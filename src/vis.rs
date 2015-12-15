@@ -10,7 +10,7 @@ use edit;
 use consts::*;
 use func::FuncType;
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum OpType {
 	Add,
 	Sub,
@@ -82,7 +82,7 @@ impl VExpr {
 		VExpr{tokens: Vec::new(), parent: None}
 	}
 	pub fn with_parent(ex: Rc<RefCell<VExpr>>) -> VExpr {
-		VExpr{tokens: Vec::new(), parent: Some(ex.downgrade())}
+		VExpr{tokens: Vec::new(), parent: Some(Rc::downgrade(&ex))}
 	}
 	
 	pub fn new_ref() -> Rc<RefCell<VExpr>> {

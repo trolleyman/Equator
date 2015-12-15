@@ -1,6 +1,7 @@
 use std::fmt;
 
-use gdk::{key, EventKey, self};
+use gdk::enums::key;
+use gdk::{EventKey, self};
 
 use consts::*;
 use gui;
@@ -101,7 +102,7 @@ impl Cursor {
 	/// Moves the cursor right one position. If successful, return true.
 	///
 	/// Example progression:
-	/// 2|3^(98)+ => 23|^(98)+ => 23|^(98)+ => 23^(|98)+ => 23^(9|8)+ => 23^(98|)+ => 23^(98)|+ => 23^(98)+| => 23^(98)+| ... etc.
+	/// |23^(98)+5, 2|3^(98)+5, 23|^(98)+5, 23^(|98)+5, 23^(9|8)+5, 23^(98|)+5, 23^(98)|+5, 23^(98)+|5, etc.
 	pub fn move_right(&mut self) -> bool {
 		let orig_pos = self.pos;
 		let orig_ex = self.ex.clone();
@@ -293,7 +294,7 @@ impl Editor {
 		let mut dirty_exp = false;
 		let mut dirty_gui = true;
 		
-		match e.keyval {
+		match e.keyval as i32 {
 			key::Left => {
 				self.cursor.move_left();
 			},
@@ -694,9 +695,9 @@ fn get_errors(ex: &VExprRef, errs: &mut Vec<Span>) {
 		}
 		
 		match &tokens[i] {
-			&VToken::Op(_) => {
+			&VToken::Op(ref op) => {
 				// Check the operator is valid at that position
-				if i == 0 || !is_token_term_left(&tokens[i - 1]) || i == tokens.len() - 1 || !is_token_term_right(&tokens[i + 1]) {
+				if op.clone() != OpType::Sub && (i == 0 || !is_token_term_left(&tokens[i - 1]) || i == tokens.len() - 1 || !is_token_term_right(&tokens[i + 1])) {
 					errs.push(Span::new(ex.clone(), i, i + 1));
 				}
 			},

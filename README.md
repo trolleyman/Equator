@@ -21,6 +21,7 @@ F4 | Toggle debug view
 ## Todo:
 Status | Task
 ------ | -------------
+Todo | Implement trig functions, and ln.
 Todo | Add grapher that can display the equation entered.
 Todo | Add equation 'history' that can be selected.
 Todo | Add 'infinite precision' numbers - surds, fractions, irrational constants and coefficients of these

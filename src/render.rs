@@ -8,8 +8,7 @@ use cairo::enums::FontWeight;
 use cairo::enums::HintStyle;
 use cairo::LineCap;
 
-use decimal::d128;
-
+use num::*;
 use edit::*;
 use err::ParseError;
 use vis::*;
@@ -738,10 +737,10 @@ impl<'a> Render<'a> {
 	}
 }
 
-pub fn render_result(c: &Context, res: Result<Num, ParseError>, alloc_w: f64, alloc_h: f64) {
+pub fn render_result(c: &Context, res: Result<d128, ParseError>, alloc_w: f64, alloc_h: f64) {
 	let _ = alloc_w;
 	let s = match res {
-		Ok(num) => format!("= {:0.6}", num),
+		Ok(num) => format!("= {}", round_dp(num, 15)),
 		Err(ParseError::NoLastResult) => "= ".into(),
 		Err(e)  => format!("error: {}", e),
 	};

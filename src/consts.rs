@@ -1,3 +1,5 @@
+use num::*;
+
 pub const CHAR_ADD: char = '+';
 pub const CHAR_SUB: char = '−';
 pub const CHAR_MUL: char = '×'; // ×
@@ -17,13 +19,27 @@ pub const INFINITY: f64 = ::std::f64::INFINITY;
 /// -∞
 pub const NEG_INFINITY: f64 = ::std::f64::NEG_INFINITY;
 
+// d128 stuff
+
+pub const D0: d128 = d128::from_bytes([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 34]);
+pub const D1: d128 = d128::from_bytes([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 34]);
+pub const D2: d128 = d128::from_bytes([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 34]);
+
+pub const DP5: d128 = d128::from_bytes([5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 192, 7, 34]);
+
+pub const D90: d128 = d128::from_bytes([26, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 34]);
+pub const D180: d128 = d128::from_bytes([138, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 34]);
+pub const D200: d128 = d128::from_bytes([0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8, 34]);
+
 /// e
-pub const D_E: f64 = d128!(2.71828182845904523536028747135266249775724709369995);
+pub const DE: d128 = d128::from_bytes([98, 75, 23, 231, 90, 224, 213, 84, 68, 150, 46, 45, 132, 249, 255, 41]);
 /// π
-pub const D_PI: f64 = d128!(3.14159265358979323846264338327950288419716939937510582097494459230781640628620899862803482534211706798215);
+pub const DPI: d128 = d128::from_bytes([131, 230, 181, 218, 208, 98, 226, 180, 251, 179, 83, 235, 26, 204, 255, 45]);
+/// π/2
+pub const DPI2: d128 = d128::from_bytes([209, 231, 188, 113, 104, 49, 101, 236, 177, 246, 166, 233, 15, 239, 255, 37]);
 /// φ
-pub const D_GOLDEN_RATIO: f64 = d128!(1.61803398874989484820458683436563811772030917980576286213544862270526046281890244970720720418939113748475);
+pub const DGOLDEN_RATIO: d128 = d128::from_bytes([56, 151, 199, 163, 186, 4, 185, 232, 97, 242, 238, 204, 128, 241, 255, 37]);
 /// ∞
-pub const D_INFINITY: f64 = d128!(Infinity);
+pub const DINFINITY: d128 = d128::from_bytes([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 120]);
 /// -∞
-pub const D_NEG_INFINITY: f64 = d128!(-Infinity);
+pub const DNEG_INFINITY: d128 = d128::from_bytes([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 248]);

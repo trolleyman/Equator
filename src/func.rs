@@ -1,9 +1,8 @@
 use std::fmt::{Display, Formatter};
 use std::fmt::Error;
 
-use decimal::d128;
-
 use consts::*;
+use num::*;
 use gui;
 
 use self::FuncType::*;
@@ -52,51 +51,46 @@ impl Display for FuncType {
 	}
 }
 impl FuncType {
-	pub fn execute(&self, val: d128) -> Option<d128> {
+	pub fn execute(&self, val: d128) -> d128 {
 		let mut v = val;
 		if self.is_trigonometric_in() {
 			// Convert whatever is the current mode to radians
 			v = match gui::get_trig_mode() {
 				gui::TrigMode::Radians  => v,
-				gui::TrigMode::Degrees  => v / d128!(180) * D_PI,
-				gui::TrigMode::Gradians => v / d128!(200) * D_PI,
+				gui::TrigMode::Degrees  => v / D180 * DPI,
+				gui::TrigMode::Gradians => v / D200 * DPI,
 			};
 		}
 		
-		let out = match self {
-			&Sqrt   => v.sqrt(),
-			&Sin    => v.sin(),
-			&Cos    => v.cos(),
-			&Tan    => v.tan(),
-			&Arsin  => v.asin(),
-			&Arcos  => v.acos(),
-			&Artan  => v.atan(),
-			&Sinh   => v.sinh(),
-			&Cosh   => v.cosh(),
-			&Tanh   => v.tanh(),
-			&Arsinh => v.asinh(),
-			&Arcosh => v.acosh(),
-			&Artanh => v.atanh(),
-			&Ln     => v.ln(),
-			&Fact   => v.factorial(),
-			&Abs    => Some(v.abs()),
-		};
-		
-		v = match out {
-			Some(out_val) => out_val,
-			None => return None
+		v = match self {
+			&Sqrt   => v.pow(DP5),
+			&Sin    => sin(v),
+			&Cos    => cos(v),
+			&Tan    => tan(v),
+			&Arsin  => unimplemented!(),// asin(v),
+			&Arcos  => unimplemented!(),// acos(v),
+			&Artan  => unimplemented!(),// atan(v),
+			&Sinh   => unimplemented!(),// sinh(v),
+			&Cosh   => unimplemented!(),// cosh(v),
+			&Tanh   => unimplemented!(),// tanh(v),
+			&Arsinh => unimplemented!(),// asinh(v),
+			&Arcosh => unimplemented!(),// acosh(v),
+			&Artanh => unimplemented!(),// atanh(v),
+			&Ln     => unimplemented!(),// ln(v),
+			&Fact   => factorial(v),
+			&Abs    => v.abs(),
 		};
 		
 		if self.is_trigonometric_out() {
 			// Convert whatever is the current mode to radians
 			v = match gui::get_trig_mode() {
 				gui::TrigMode::Radians  => v,
-				gui::TrigMode::Degrees  => v * d128!(180) / D_PI,
-				gui::TrigMode::Gradians => v * d128!(200) / D_PI,
+				gui::TrigMode::Degrees  => v * D180 / DPI,
+				gui::TrigMode::Gradians => v * D200 / DPI,
 			};
 		}
 		
-		Some(v)
+		v
 	}
 	
 	// This function takes in radians, gives out arbritrary numbers

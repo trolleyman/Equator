@@ -4,7 +4,8 @@ use gtk::widgets::*;
 use gtk::{Orientation, ReliefStyle};
 use gtk_sys;
 
-use gdk::{key, self, EventType};
+use gdk::{self, EventType};
+use gdk::enums::key;
 
 use cairo::Context;
 
@@ -181,7 +182,7 @@ pub fn init_gui() {
 		let name = gdk::keyval_name(event.keyval).unwrap_or(" ".to_string());
 		println!("keypress: {0:#08x} : {1} : {2}", event.keyval, c, name);
 		
-		match event.keyval {
+		match event.keyval as i32 {
 			key::Shift_L   | key::Shift_R   => set_gui_state(GuiState::Shift),
 			key::Control_L | key::Control_R => set_gui_state(GuiState::Ctrl),
 			_ => {}
@@ -190,7 +191,7 @@ pub fn init_gui() {
 		Inhibit(handled)
 	});
 	win.connect_key_release_event(move |_, event| {
-		match event.keyval {
+		match event.keyval as i32 {
 			key::Shift_L   | key::Shift_R   => set_gui_state(GuiState::Normal),
 			key::Control_L | key::Control_R => set_gui_state(GuiState::Normal),
 			_ => {}

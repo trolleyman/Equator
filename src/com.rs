@@ -2,8 +2,7 @@
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Write, self};
 
-use decimal::d128;
-
+use num::*;
 use consts::*;
 use vis::*;
 use func::*;
@@ -125,38 +124,38 @@ impl Display for Command {
 /// e.g. stack, variable states.
 #[derive(Debug)]
 pub struct VM {
-	stack: Vec<Num>,
-	vars : HashMap<char, Num>,
+	stack: Vec<d128>,
+	vars : HashMap<char, d128>,
 	num  : usize, // number of commands executed on this VM
-	last_result: Result<Num, ParseError>,
+	last_result: Result<d128, ParseError>,
 }
 impl VM {
 	pub fn new() -> VM {
 		let mut hm = HashMap::new();
-		hm.insert('π', Num::PI);
-		hm.insert('e', Num::E);
-		hm.insert('φ', Num::GOLDEN_RATIO);
+		hm.insert('π', DPI);
+		hm.insert('e', DE);
+		hm.insert('φ', DGOLDEN_RATIO);
 		VM{stack:Vec::new(), vars:hm, num:0, last_result:Err(NoLastResult)}
 	}
 	#[inline(always)]
-	pub fn push(&mut self, v: Num) {
+	pub fn push(&mut self, v: d128) {
 		self.stack.push(v);
 	}
 	#[inline(always)]
-	pub fn pop(&mut self) -> Option<Num> {
+	pub fn pop(&mut self) -> Option<d128> {
 		self.stack.pop()
 	}
 	#[inline(always)]
-	pub fn peek(&mut self) -> Option<Num> {
+	pub fn peek(&mut self) -> Option<d128> {
 		self.stack.get(0).map(|f| {*f})
 	}
 	#[inline(always)]
-	pub fn set_var(&mut self, id: char, v: Num) {
+	pub fn set_var(&mut self, id: char, v: d128) {
 		self.vars.insert(id, v);
 	}
 	#[inline(always)]
-	pub fn get_var(&mut self, id: char) -> Option<Num> {
-		self.vars.get(&id).map(|f: &Num| *f)
+	pub fn get_var(&mut self, id: char) -> Option<d128> {
+		self.vars.get(&id).map(|f: &d128| *f)
 	}
 	#[inline(always)]
 	pub fn clear_stack(&mut self) {
@@ -167,7 +166,7 @@ impl VM {
 	pub fn stack_size(&self) -> usize {
 		self.stack.len()
 	}
-	pub fn get_result(&mut self, coms: &[Command]) -> Result<Num, ParseError> {
+	pub fn get_result(&mut self, coms: &[Command]) -> Result<d128, ParseError> {
 		match self.execute_all(coms) {
 			Ok(_) => {},
 			Err(e) => {
@@ -186,7 +185,7 @@ impl VM {
 		res
 	}
 	#[inline(always)]
-	pub fn get_last_result(&self) -> Result<Num, ParseError> {
+	pub fn get_last_result(&self) -> Result<d128, ParseError> {
 		self.last_result.clone()
 	}
 	pub fn execute_all(&mut self, coms: &[Command]) -> Result<(), ParseError> {
@@ -268,18 +267,13 @@ impl VM {
 				self.push(a.pow(b));
 			},
 			&Com::Func(ref func) => {
-				match func.execute(self.pop().unwrap()) {
-					Some(res) => self.push(res),
-					None => return Err(CommandExecuteError(com.clone(), pos))
-				}
+				let a = self.pop().unwrap();
+				self.push(func.execute(a));
 			},
 			&Com::Root => {
 				let b = self.pop().unwrap(); // Intentional B first.
 				let a = self.pop().unwrap();
-				match a.recip().map(|recip| b.pow(recip)) {
-					Some(res) => self.push(res),
-					_ => return Err(CommandExecuteError(com.clone(), pos))
-				}
+				self.push(b.pow(d128!(1) / a));
 			},
 			&Com::Comma | &Com::ParenOpen | &Com::ParenClose => return Err(IllegalCommand(com.clone(), self.num)),
 		}
@@ -319,7 +313,7 @@ fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseErro
 	let mut num_buf_start: usize = 0;
 	let mut i = 0;
 	for tok in ex.borrow().tokens.iter() {
-		let mut last_tok = if infix.len() >= 1 {
+		let mut _last_tok = if infix.len() >= 1 {
 			infix.get(infix.len() - 1).map(|c| { c.clone() })
 		} else {
 			None
@@ -343,7 +337,7 @@ fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseErro
 			_ => {}
 		}
 		
-		last_tok = if infix.len() >= 1 {
+		_last_tok = if infix.len() >= 1 {
 			infix.get(infix.len() - 1).map(|c| { c.clone() })
 		} else {
 			None
@@ -417,7 +411,7 @@ fn expr_to_infix(ex: VExprRef, infix: &mut Vec<Command>) -> Result<(), ParseErro
 			}
 		}
 		if debug_print {
-			let last = match last_tok {
+			let last = match _last_tok {
 				Some(t) => format!("Some({})", t),
 				None    => "None".into(),
 			};
