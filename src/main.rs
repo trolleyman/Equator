@@ -1,4 +1,4 @@
-#![feature(convert, box_syntax, str_char, as_unsafe_cell, const_fn, associated_consts)]
+#![feature(convert, box_syntax, str_char, as_unsafe_cell, const_fn, associated_consts, time2)]
 #![allow(non_upper_case_globals)]
 extern crate gtk;
 extern crate gtk_sys;
@@ -11,8 +11,9 @@ use gtk::traits::*;
 use gtk::{Window, WindowType, WindowPosition};
 use gtk::signal::Inhibit;
 
+use std::ffi::CString;
 use std::ptr;
-use std::mem;
+//use std::mem;
 
 pub mod num;
 pub mod vis;
@@ -68,7 +69,7 @@ fn main() {
 	unsafe {
 		g_window = &mut temp_win;
 		
-		let win: &Window = mem::transmute(g_window);
+		let win: &Window = &temp_win;
 		
 		win.set_title("Equator");
 		win.set_border_width(10);
@@ -79,6 +80,8 @@ fn main() {
 			gtk::main_quit();
 			Inhibit(true)
 		});
+		
+		gtk_sys::gtk_window_set_icon_from_file(temp_win.unwrap_widget() as *mut _, CString::new("icon.ico").unwrap().into_raw(), ptr::null_mut());
 	}
 	
 	let mut temp_vm = com::VM::new();

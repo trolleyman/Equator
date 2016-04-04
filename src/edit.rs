@@ -1,4 +1,5 @@
 use std::fmt;
+use std::time::{Duration, Instant};
 
 use gdk::enums::key;
 use gdk::{EventKey, self};
@@ -11,25 +12,46 @@ use err::*;
 use vis::*;
 use func::*;
 
+fn flash_duration() -> Duration {
+	Duration::from_millis(1000)
+}
+
 #[derive(Clone, Debug)]
 pub struct Cursor {
 	pub ex: VExprRef,
 	pub pos: usize,
+	pub visible: bool,
+	pub last_flash_time: Instant,
 }
 
 impl Cursor {
 	pub fn new() -> Cursor {
-		Cursor{ex:VExpr::new_ref(), pos:0}
-	}
-	pub fn new_ex(ex:VExprRef, pos:usize) -> Cursor {
-		Cursor{ex:ex, pos:pos}
+		Cursor::new_ex(VExpr::new_ref(), 0)
 	}
 	pub fn with_ex(ex:VExprRef) -> Cursor {
-		Cursor{ex:ex, pos:0}
+		Cursor::new_ex(ex, 0)
+	}
+	pub fn new_ex(ex:VExprRef, pos:usize) -> Cursor {
+		Cursor{ex:ex, pos:pos, visible:true, last_flash_time:Instant::now()}
+	}
+	
+	fn changed(&mut self) {
+		self.visible = true;
+		self.last_flash_time = Instant::now();
+	}
+	pub fn is_visible(&mut self) -> bool {
+		let now = Instant::now();
+		let d = now.duration_from_earlier(self.last_flash_time);
+		if d >= flash_duration() {
+			self.visible = !self.visible;
+			self.last_flash_time = now;
+		}
+		self.visible
 	}
 	
 	/// Performs a delete at `self.pos`. If successful, return true.
 	pub fn delete(&mut self) -> bool {
+		self.changed();
 		let pos_in_bounds = {
 			self.ex.borrow().tokens.get(self.pos).is_some()
 		};
@@ -53,6 +75,7 @@ impl Cursor {
 	
 	/// Performs a backsace at `self.pos`. If successful, returns true.
 	pub fn backspace(&mut self) -> bool {
+		self.changed();
 		if self.move_left() {
 			return self.delete();
 		} else {
@@ -62,6 +85,7 @@ impl Cursor {
 	
 	/// Moves the cursor left one position. If successful, return true.
 	pub fn move_left(&mut self) -> bool {
+		self.changed();
 		if self.pos == 0 || self.ex.borrow().tokens.get(self.pos - 1).is_none() {
 			// Move up to the parent, if there is one
 			let orig_ex = self.ex.clone();
@@ -104,6 +128,7 @@ impl Cursor {
 	/// Example progression:
 	/// |23^(98)+5, 2|3^(98)+5, 23|^(98)+5, 23^(|98)+5, 23^(9|8)+5, 23^(98|)+5, 23^(98)|+5, 23^(98)+|5, etc.
 	pub fn move_right(&mut self) -> bool {
+		self.changed();
 		let orig_pos = self.pos;
 		let orig_ex = self.ex.clone();
 		
@@ -144,6 +169,7 @@ impl Cursor {
 	
 	/// Trys to move the cursor down into the current token. Returns true if the operation was successful.
 	pub fn move_in(&mut self) -> bool {
+		self.changed();
 		let ex_clone = self.ex.clone();
 		let ex = ex_clone.borrow();
 		let tok = match ex.tokens.get(self.pos).clone() {
@@ -162,6 +188,7 @@ impl Cursor {
 	
 	/// Moves the cursor to the parent token of the current token. Returns true if the operation was successful.
 	pub fn move_out(&mut self) -> bool {
+		self.changed();
 		let ex_clone = self.ex.clone();
 		let ex = ex_clone.borrow();
 		if ex.parent.is_some() {
@@ -196,6 +223,7 @@ impl Cursor {
 	
 	/// Move visually up.
 	pub fn move_up(&mut self) -> bool {
+		self.changed();
 		// If in a token with multiple inner expressions, move to the left of the current one.
 		let parent_ex = match self.ex.borrow().get_parent() {
 			Some(ex) => ex,
@@ -217,6 +245,7 @@ impl Cursor {
 	}
 	
 	pub fn move_down(&mut self) -> bool {
+		self.changed();
 		// If in a token with multiple inner expressions, move to the right of the current one.
 		let parent_ex = match self.ex.borrow().get_parent() {
 			Some(ex) => ex,
