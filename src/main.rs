@@ -6,6 +6,8 @@ extern crate gdk;
 extern crate cairo;
 #[macro_use]
 extern crate decimal;
+#[macro_use]
+extern crate lazy_static;
 
 use gtk::traits::*;
 use gtk::{Window, WindowType, WindowPosition};

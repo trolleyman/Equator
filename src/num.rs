@@ -21,9 +21,9 @@ pub use decimal::d128;
 pub fn round_dp(x: d128, dp: i32) -> d128 {
 	#[inline(always)]
 	fn truncate(x: d128) -> d128 {
-		let frac = x % D1;
-		if frac >= DP5 {
-			x - frac + D1
+		let frac = x % *D1;
+		if frac >= *DP5 {
+			x - frac + *D1
 		} else {
 			x - frac
 		}
@@ -41,16 +41,16 @@ pub fn round_dp(x: d128, dp: i32) -> d128 {
 /// Performs `v!`
 pub fn factorial(x: d128) -> d128 {
 	// Calculate the factorial using an approximation to the gamma function if `x` is not an integer, or is less than 0.
-	if x.is_integer() && x >= D1 {
-		let mut i = D2;
-		let mut acc = D1;
+	if x.is_integer() && x >= *D1 {
+		let mut i = *D2;
+		let mut acc = *D1;
 		while i <= x && !acc.is_infinite() {
 			acc = acc * i;
-			i = i + D1;
+			i = i + *D1;
 		}
 		acc
 	} else {
-		gamma(x + D1)
+		gamma(x + *D1)
 	}
 }
 
@@ -60,18 +60,18 @@ pub fn gamma(mut x: d128) -> d128 {
 			   d128!(-176.61502916214059),     d128!(12.507343278686905), d128!(-0.13857109526572012),
 				  d128!(9.9843695780195716e-6), d128!(1.5056327351493116e-7)];
 	
-	if x < DP5 {
-		DPI / (sin(DPI*x) * gamma(D1-x))
+	if x < *DP5 {
+		*DPI / (sin(*DPI*x) * gamma(*D1-x))
 	} else {
-		x = x - D1;
+		x = x - *D1;
 		let mut y = d128!(0.99999999999980993);
 		
 		for (i, pval) in p.iter().enumerate() {
-			y = y + *pval / (x + d128::from(i as u32) + D1);
+			y = y + *pval / (x + d128::from(i as u32) + *D1);
 		}
 		
-		let t = x + d128::from(p.len() as u32) - DP5;
-		(D2*DPI).pow(DP5) * t.pow(x+DP5) * DE.pow(-t) * y
+		let t = x + d128::from(p.len() as u32) - *DP5;
+		((*D2)*(*DPI)).pow(*DP5) * t.pow(x+*DP5) * DE.pow(-t) * y
 	}
 }
 
@@ -84,15 +84,15 @@ pub fn sin_precision(mut x: d128, iters: u32) -> d128 {
 	// Calculate based on taylor series. https://en.wikipedia.org/wiki/Sine#Series_definition
 	// Sum fromm 0 to ∞ of ((-1)^n / (2n + 1)!) * x^(2n + 1)
 	
-	x = x % DPI;   // equals x
-	if x == DPI || x == -DPI {
-		return D0;
+	x = x % *DPI;   // equals x
+	if x == *DPI || x == -(*DPI) {
+		return *D0;
 	}
-	let mut fact = D1; // equals (2n + 1)!
-	let mut it = D1;   // equals (2n + 1)
-	let mut neg = D1;  // equals (-1)^n
+	let mut fact = *D1; // equals (2n + 1)!
+	let mut it = *D1;   // equals (2n + 1)
+	let mut neg = *D1;  // equals (-1)^n
 	let mut xpow = x;  // equals x^(2n + 1)
-	let mut sum = D0;
+	let mut sum = *D0;
 	
 	for _i in 0..(iters - 1) {
 		// Sum
@@ -102,9 +102,9 @@ pub fn sin_precision(mut x: d128, iters: u32) -> d128 {
 		
 		// Update vars for next loop
 		neg = -neg;
-		it = it + D1;
+		it = it + *D1;
 		fact = fact * it;
-		it = it + D1;
+		it = it + *D1;
 		fact = fact * it;
 		xpow = xpow * x * x;
 	}
@@ -118,7 +118,7 @@ pub fn cos(x: d128) -> d128 {
 }
 pub fn cos_precision(x: d128, iters: u32) -> d128 {
 	// cos(x) = sin(π/2 + x)
-	sin_precision(x + DPI2, iters)
+	sin_precision(x + *DPI2, iters)
 }
 
 pub fn tan(x: d128) -> d128 {

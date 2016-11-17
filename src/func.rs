@@ -57,13 +57,13 @@ impl FuncType {
 			// Convert whatever is the current mode to radians
 			v = match gui::get_trig_mode() {
 				gui::TrigMode::Radians  => v,
-				gui::TrigMode::Degrees  => v / D180 * DPI,
-				gui::TrigMode::Gradians => v / D200 * DPI,
+				gui::TrigMode::Degrees  => v / *D180 * *DPI,
+				gui::TrigMode::Gradians => v / *D200 * *DPI,
 			};
 		}
 		
 		v = match self {
-			&Sqrt   => v.pow(DP5),
+			&Sqrt   => v.pow(*DP5),
 			&Sin    => sin(v),
 			&Cos    => cos(v),
 			&Tan    => tan(v),
@@ -85,8 +85,8 @@ impl FuncType {
 			// Convert whatever is the current mode to radians
 			v = match gui::get_trig_mode() {
 				gui::TrigMode::Radians  => v,
-				gui::TrigMode::Degrees  => v * D180 / DPI,
-				gui::TrigMode::Gradians => v * D200 / DPI,
+				gui::TrigMode::Degrees  => v * *D180 / *DPI,
+				gui::TrigMode::Gradians => v * *D200 / *DPI,
 			};
 		}
 		

@@ -132,9 +132,9 @@ pub struct VM {
 impl VM {
 	pub fn new() -> VM {
 		let mut hm = HashMap::new();
-		hm.insert('π', DPI);
-		hm.insert('e', DE);
-		hm.insert('φ', DGOLDEN_RATIO);
+		hm.insert('π', *DPI);
+		hm.insert('e', *DE);
+		hm.insert('φ', *DGOLDEN_RATIO);
 		VM{stack:Vec::new(), vars:hm, num:0, last_result:Err(NoLastResult)}
 	}
 	#[inline(always)]
@@ -575,7 +575,7 @@ pub fn commands_to_string(coms: &[Command], spaces: bool) -> String {
 			&Com::Comma => s.push(','),
 			&Com::ParenOpen => s.push('('),
 			&Com::ParenClose => {
-				if !spaces && s.len() != 0 && s.is_char_boundary(s.len() - 1) && s.char_at(s.len() - 1) == ' ' {
+				if !spaces && s.len() != 0 && s.as_bytes()[s.len() - 1] == b' ' {
 					s.pop();
 				}
 				s.push(')');
