@@ -251,7 +251,7 @@ impl<'a> Render<'a> {
 		self.c.fill();
 		
 		// Draw cursor
-		if self.exts.cursor_extent.is_some() {
+		if self.cursor.is_visible() && self.exts.cursor_extent.is_some() {
 			let ex = self.exts.cursor_extent.unwrap();
 			self.c.rectangle(ex.x0, ex.y0, ex.w(), ex.h());
 		}
