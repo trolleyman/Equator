@@ -41,7 +41,7 @@ impl Cursor {
 	}
 	pub fn is_visible(&mut self) -> bool {
 		let now = Instant::now();
-		let d = now.duration_from_earlier(self.last_flash_time);
+		let d = now.duration_since(self.last_flash_time);
 		if d >= flash_duration() {
 			self.visible = !self.visible;
 			self.last_flash_time = now;
