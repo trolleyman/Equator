@@ -1,4 +1,4 @@
-#![feature(convert, box_syntax, str_char, as_unsafe_cell, const_fn, associated_consts, time2)]
+#![feature(box_syntax, const_fn, associated_consts)]
 #![allow(non_upper_case_globals)]
 extern crate gtk;
 extern crate gtk_sys;
@@ -9,6 +9,7 @@ extern crate decimal;
 #[macro_use]
 extern crate lazy_static;
 
+#[allow(unused_imports)] // Even though this import *is* used...
 use gtk::traits::*;
 use gtk::{Window, WindowType, WindowPosition};
 use gtk::signal::Inhibit;

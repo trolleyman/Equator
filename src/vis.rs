@@ -271,7 +271,7 @@ pub fn display_vexpr_errors<T: Write, V: Write>(ex: VExprRef, cursor_opt: &Optio
 }
 
 pub fn is_equal_reference<T>(ref1: &Rc<RefCell<T>>, ref2: &Rc<RefCell<T>>) -> bool {
-	unsafe { ref1.as_unsafe_cell().get() == ref2.as_unsafe_cell().get() }
+	ref1.as_ptr() == ref2.as_ptr()
 }
 
 /// Tries to find `needle` in `hayastack`.

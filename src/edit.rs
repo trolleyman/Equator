@@ -95,7 +95,7 @@ impl Cursor {
 			let exprs = self.ex.borrow().tokens[self.pos].get_inner_expr();
 			let mut found: isize = -1;
 			for i in 0..exprs.len() {
-				if unsafe { exprs[i].as_unsafe_cell().get() == orig_ex.as_unsafe_cell().get() } {
+				if exprs[i].as_ptr() == orig_ex.as_ptr() {
 					found = i as isize;
 					break;
 				}
@@ -146,7 +146,7 @@ impl Cursor {
 					let exprs = self.ex.borrow().tokens[self.pos].get_inner_expr();
 					let mut found: isize = -1;
 					for i in 0..exprs.len() {
-						if unsafe { exprs[i].as_unsafe_cell().get() == orig_ex.as_unsafe_cell().get() } {
+						if exprs[i].as_ptr() == orig_ex.as_ptr() {
 							found = i as isize;
 							break;
 						}
@@ -194,21 +194,18 @@ impl Cursor {
 		if ex.parent.is_some() {
 			let parent_weak = ex.clone().parent.unwrap();
 			if let Some(parent) = parent_weak.upgrade() {
-				
 				self.ex = parent;
 				// Right expr, wrong place. Find original ex in parent.
 				// Panic if not found, this signals some terrible breakdown in the structure of the expression.
 				let mut found = false;
 				let tokens = self.ex.borrow().clone().tokens;
 				for i in 0..tokens.len() {
-					unsafe {
-						let tok = tokens[i].clone();
-						for inner_ex in tok.get_inner_expr().iter() {
-							if inner_ex.as_unsafe_cell().get() == ex_clone.as_unsafe_cell().get() {
-								found = true;
-								self.pos = i;
-								break;
-							}
+					let tok = tokens[i].clone();
+					for inner_ex in tok.get_inner_expr().iter() {
+						if inner_ex.as_ptr() == ex_clone.as_ptr() {
+							found = true;
+							self.pos = i;
+							break;
 						}
 					}
 				}
