@@ -54,10 +54,6 @@ pub enum ButtonID {
 	Const(char),
 }
 
-static mut shift_btn_ptr: *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget;
-static mut ctrl_btn_ptr : *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget;
-static mut store_btn_ptr: *mut gtk_sys::GtkWidget = 0 as *mut gtk_sys::GtkWidget;
-
 // The expression has changed - flush the output and queue a redraw
 // Also check the equation for errors...
 pub fn dirty_expression() {
