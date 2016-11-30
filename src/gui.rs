@@ -1,6 +1,5 @@
 use gtk::prelude::*;
 use gtk::*;
-use gtk_sys;
 
 use gdk;
 use gdk::enums::key;
