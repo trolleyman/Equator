@@ -320,7 +320,7 @@ impl Editor {
 		let mut dirty_exp = false;
 		let mut dirty_gui = true;
 		
-		match e.keyval as i32 {
+		match e.get_keyval() {
 			key::Left => {
 				self.cursor.move_left();
 			},
@@ -364,7 +364,7 @@ impl Editor {
 				dirty_exp = false;
 			}
 			_ => {
-				if let Some(c) = gdk::keyval_to_unicode(e.keyval) {
+				if let Some(c) = gdk::keyval_to_unicode(e.get_keyval()) {
 					dirty_exp = self.insert_char(c);
 				} else {
 					dirty_gui = false;

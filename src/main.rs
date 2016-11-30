@@ -9,12 +9,9 @@ extern crate decimal;
 #[macro_use]
 extern crate lazy_static;
 
-#[allow(unused_imports)] // Even though this import *is* used...
-use gtk::traits::*;
+use gtk::prelude::*;
 use gtk::{Window, WindowType, WindowPosition};
-use gtk::signal::Inhibit;
 
-use std::ffi::CString;
 use std::ptr;
 //use std::mem;
 
@@ -31,6 +28,7 @@ pub mod consts;
 static mut g_window: *mut Window = ptr::null_mut();
 static mut g_editor: *mut edit::Editor = ptr::null_mut();
 static mut g_vm    : *mut com::VM = ptr::null_mut();
+static mut g_check_buttons: *mut gui::CheckButtons = ptr::null_mut();
 
 pub fn get_window() -> &'static mut Window {
 	unsafe {
@@ -56,6 +54,14 @@ pub fn get_vm() -> &'static mut com::VM {
 		&mut *g_vm
 	}
 }
+pub fn get_check_buttons() -> &'static mut gui::CheckButtons {
+	unsafe {
+		if g_check_buttons.is_null() {
+			panic!("check buttons not initialized");
+		}
+		&mut *g_check_buttons
+	}
+}
 
 fn main() {
 	match gtk::init() {
@@ -68,7 +74,7 @@ fn main() {
 		g_editor = &mut temp_edit;
 	}
 	
-	let mut temp_win = Window::new(WindowType::Toplevel).expect("could not create window");
+	let mut temp_win = Window::new(WindowType::Toplevel);
 	unsafe {
 		g_window = &mut temp_win;
 		
@@ -76,7 +82,7 @@ fn main() {
 		
 		win.set_title("Equator");
 		win.set_border_width(10);
-		win.set_window_position(WindowPosition::Center);
+		win.set_position(WindowPosition::Center);
 		//win.set_default_size(350, 70);
 		
 		win.connect_delete_event(|_, _| {
@@ -84,12 +90,18 @@ fn main() {
 			Inhibit(true)
 		});
 		
-		gtk_sys::gtk_window_set_icon_from_file(temp_win.unwrap_widget() as *mut _, CString::new("icon.ico").unwrap().into_raw(), ptr::null_mut());
+		win.set_icon_from_file("icon.ico")
+			.map_err(|e| println!("Warning: Could not load icon: {}", e)).ok();
 	}
 	
 	let mut temp_vm = com::VM::new();
 	unsafe {
 		g_vm = &mut temp_vm;
+	}
+	
+	let mut temp_check_buttons = gui::CheckButtons::new();
+	unsafe {
+		g_check_buttons = &mut temp_check_buttons;
 	}
 	
 	gui::init_gui();

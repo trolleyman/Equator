@@ -1,10 +1,8 @@
-use gtk::traits::*;
-use gtk::signal::Inhibit;
-use gtk::widgets::*;
-use gtk::{Orientation, ReliefStyle};
+use gtk::prelude::*;
+use gtk::*;
 use gtk_sys;
 
-use gdk::{self, EventType};
+use gdk;
 use gdk::enums::key;
 
 use cairo::Context;
@@ -12,6 +10,21 @@ use cairo::Context;
 use edit::Editor;
 use render::{Render, Extent, render_result};
 use com::*;
+
+pub struct CheckButtons {
+	shift_btn: CheckButton,
+	ctrl_btn : CheckButton,
+	store_btn: CheckButton,
+}
+impl CheckButtons {
+	pub fn new() -> CheckButtons {
+		CheckButtons {
+			shift_btn: CheckButton::new_with_label("SHIFT"),
+			ctrl_btn : CheckButton::new_with_label("CTRL" ),
+			store_btn: CheckButton::new_with_label("STORE"),
+		}
+	}
+}
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum ButtonID {
@@ -92,30 +105,29 @@ pub fn init_gui() {
 	win.set_double_buffered(true);
 	
 	// Get controls
-	let main_grid = Grid::new().unwrap();    // This is the grid that holds all of the controls,
+	let main_grid = Grid::new();    // This is the grid that holds all of the controls,
 	main_grid.set_row_spacing(5);            // the buttons on the bottom and the drawing area on the top
 	main_grid.set_column_spacing(5);
 	main_grid.set_vexpand(true);
 	main_grid.set_hexpand(true);
 	
-	let da_frame = Frame::new(None).unwrap();
+	let da_frame = Frame::new(None);
 	{
-		let eb = EventBox::new().unwrap();
+		let eb = EventBox::new();
 		eb.connect_button_press_event(|_, e| {
-			if e._type == EventType::ButtonPress {
-				println!("mouse click: ({}, {})", e.x, e.y);
-				if ::get_editor().handle_click(e.x, e.y) {
-					dirty_gui();
-				}
+			let (x, y) = e.get_position();
+			println!("mouse click: ({}, {})", x, y);
+			if ::get_editor().handle_click(x, y) {
+				dirty_gui();
 			}
 			
 			Inhibit(false)
 		});
-		let da = DrawingArea::new().unwrap();    // This is the main drawing area that the current equation is
+		let da = DrawingArea::new();    // This is the main drawing area that the current equation is
 		da.set_vexpand(true);                    // drawn to. Has a variable size.
 		da.set_hexpand(true);
 		//da.set_size_request(500, 500);
-		da.connect_draw(|w: Widget, c: Context| {
+		da.connect_draw(|w: &DrawingArea, c: &Context| {
 			let (alloc_w, alloc_h) = (w.get_allocated_width(), w.get_allocated_height());
 			
 			let mut ren = Render::new(&c, ::get_editor());
@@ -131,13 +143,13 @@ pub fn init_gui() {
 		da_frame.add(&eb);
 	}
 	
-	let res_frame = Frame::new(None).unwrap();
+	let res_frame = Frame::new(None);
 	{
-		let da = DrawingArea::new().unwrap();
+		let da = DrawingArea::new();
 		da.set_size_request(-1, 50);
 		da.set_vexpand(false);
 		da.set_hexpand(true);
-		da.connect_draw(|w: Widget, c: Context| {
+		da.connect_draw(|w: &DrawingArea, c: &Context| {
 			let (alloc_w, alloc_h) = (w.get_allocated_width(), w.get_allocated_height());
 			
 			render_result(&c, ::get_vm().get_last_result(), alloc_w as f64, alloc_h as f64);
@@ -148,9 +160,9 @@ pub fn init_gui() {
 		res_frame.add(&da);
 	}
 	
-	let var_frame = Frame::new(Some("Variables")).unwrap();
+	let var_frame = Frame::new(Some("Variables"));
 	/* Need to figure out how to remove children / iterate through them.
-	let var_vbox = Box::new(Orientation::Vertical, 5).unwrap();
+	let var_vbox = Box::new(Orientation::Vertical, 5);
 	var_vbox.connect_draw(|w: Widget, c: Context| {
 		// Add a bunch of variable controls
 		let b = Box::wrap_widget(w.unwrap_widget());
@@ -178,11 +190,11 @@ pub fn init_gui() {
 		let edit: &mut Editor = ::get_editor();
 		let handled = edit.handle_keypress(event);
 		
-		let c = gdk::keyval_to_unicode(event.keyval).unwrap_or(' ');
-		let name = gdk::keyval_name(event.keyval).unwrap_or(" ".to_string());
-		println!("keypress: {0:#08x} : {1} : {2}", event.keyval, c, name);
+		let c = gdk::keyval_to_unicode(event.get_keyval()).unwrap_or(' ');
+		let name = gdk::keyval_name(event.get_keyval()).unwrap_or(" ".to_string());
+		println!("keypress: {0:#08x} : {1} : {2}", event.get_keyval(), c, name);
 		
-		match event.keyval as i32 {
+		match event.get_keyval() {
 			key::Shift_L   | key::Shift_R   => set_gui_state(GuiState::Shift),
 			key::Control_L | key::Control_R => set_gui_state(GuiState::Ctrl),
 			_ => {}
@@ -191,7 +203,7 @@ pub fn init_gui() {
 		Inhibit(handled)
 	});
 	win.connect_key_release_event(move |_, event| {
-		match event.keyval as i32 {
+		match event.get_keyval() {
 			key::Shift_L   | key::Shift_R   => set_gui_state(GuiState::Normal),
 			key::Control_L | key::Control_R => set_gui_state(GuiState::Normal),
 			_ => {}
@@ -215,7 +227,7 @@ pub fn init_gui() {
 
 fn get_button_grid() -> Grid {
 	// Get grid & size it
-	let grid = Grid::new().unwrap();
+	let grid = Grid::new();
 	grid.set_row_spacing(3);
 	grid.set_column_spacing(3);
 	for i in 0..5 {
@@ -226,21 +238,24 @@ fn get_button_grid() -> Grid {
 	}
 	
 	// Insert the radians/degrees selector
-	let frame = Frame::new(None).unwrap();
+	let frame = Frame::new(None);
 	{
-		let rb_radians = RadioButton::new_with_label("Radians").unwrap();
-		rb_radians.set_focus_on_click(false); rb_radians.set_relief(ReliefStyle::None);
-		rb_radians.connect_clicked(|but| { if ToggleButton::wrap_widget(but.unwrap_widget()).get_active() { set_trig_mode(TrigMode::Radians); } });
+		let rb_radians = RadioButton::new_with_mnemonic_from_widget(None, "Radians");
+		WidgetExt::set_focus_on_click(&rb_radians, false);
+		rb_radians.set_relief(ReliefStyle::None);
+		rb_radians.connect_clicked(|but| { if but.get_active() { set_trig_mode(TrigMode::Radians); } });
 		
-		let rb_degrees = RadioButton::new_with_label("Degrees").unwrap(); rb_degrees.join(&rb_radians);
-		rb_degrees.set_focus_on_click(false); rb_degrees.set_relief(ReliefStyle::None);
-		rb_degrees.connect_clicked(|but| { if ToggleButton::wrap_widget(but.unwrap_widget()).get_active() { set_trig_mode(TrigMode::Degrees); } });
+		let rb_degrees = RadioButton::new_with_mnemonic_from_widget(Some(&rb_radians), "Degrees");
+		WidgetExt::set_focus_on_click(&rb_degrees, false);
+		rb_degrees.set_relief(ReliefStyle::None);
+		rb_degrees.connect_clicked(|but| { if but.get_active() { set_trig_mode(TrigMode::Degrees); } });
 		
-		let rb_gradians = RadioButton::new_with_label("Grads").unwrap(); rb_gradians.join(&rb_radians);
-		rb_gradians.set_focus_on_click(false); rb_gradians.set_relief(ReliefStyle::None);
-		rb_gradians.connect_clicked(|but| { if ToggleButton::wrap_widget(but.unwrap_widget()).get_active() { set_trig_mode(TrigMode::Gradians); } });
+		let rb_gradians = RadioButton::new_with_mnemonic_from_widget(Some(&rb_radians), "Gradians");
+		WidgetExt::set_focus_on_click(&rb_gradians, false);
+		rb_gradians.set_relief(ReliefStyle::None);
+		rb_gradians.connect_clicked(|but| { if but.get_active() { set_trig_mode(TrigMode::Gradians); } });
 		
-		let button_box = ButtonBox::new(Orientation::Vertical).unwrap(); //68, 23
+		let button_box = ButtonBox::new(Orientation::Vertical); //68, 23
 		button_box.add(&rb_radians);
 		button_box.add(&rb_degrees);
 		button_box.add(&rb_gradians);
@@ -250,56 +265,54 @@ fn get_button_grid() -> Grid {
 	grid.attach(&frame, 0, 0, 1, 3);
 	
 	// Setup the SHIFT + CTRL + STORE buttons.
-	unsafe {
-		let shift_btn = CheckButton::new_with_label("SHIFT").unwrap();
-		let ctrl_btn  = CheckButton::new_with_label("CTRL" ).unwrap();
-		let store_btn = CheckButton::new_with_label("STORE").unwrap();
-		shift_btn_ptr = shift_btn.unwrap_widget();
-		ctrl_btn_ptr  = ctrl_btn .unwrap_widget();
-		store_btn_ptr = store_btn.unwrap_widget();
-		shift_btn.set_mode(false); shift_btn.set_focus_on_click(false);
-		ctrl_btn .set_mode(false); ctrl_btn .set_focus_on_click(false);
-		store_btn.set_mode(false); store_btn.set_focus_on_click(false);
+	let shift_btn = ::get_check_buttons().shift_btn.clone();
+	let ctrl_btn  = ::get_check_buttons().ctrl_btn .clone();
+	let store_btn = ::get_check_buttons().store_btn.clone();
+	shift_btn.set_mode(false);
+	WidgetExt::set_focus_on_click(&shift_btn, false);
+	ctrl_btn .set_mode(false);
+	WidgetExt::set_focus_on_click(&ctrl_btn , false);
+	store_btn.set_mode(false);
+	WidgetExt::set_focus_on_click(&store_btn, false);
+	
+	shift_btn.connect_button_press_event(move |_, _| {
+		// If the other is on, turn it off
+		if get_gui_state() == GuiState::Shift {
+			set_gui_state(GuiState::Normal);
+		} else {
+			set_gui_state(GuiState::Shift);
+		}
+		dirty_gui();
 		
-		shift_btn.connect_button_press_event(move |_, _| {
-			// If the other is on, turn it off
-			if get_gui_state() == GuiState::Shift {
-				set_gui_state(GuiState::Normal);
-			} else {
-				set_gui_state(GuiState::Shift);
-			}
-			dirty_gui();
-			
-			Inhibit(true)
-		});
+		Inhibit(true)
+	});
+	
+	ctrl_btn.connect_button_press_event(move |_, _| {
+		// If the other is on, turn it off
+		if get_gui_state() == GuiState::Ctrl {
+			set_gui_state(GuiState::Normal);
+		} else {
+			set_gui_state(GuiState::Ctrl);
+		}
+		dirty_gui();
 		
-		ctrl_btn.connect_button_press_event(move |_, _| {
-			// If the other is on, turn it off
-			if get_gui_state() == GuiState::Ctrl {
-				set_gui_state(GuiState::Normal);
-			} else {
-				set_gui_state(GuiState::Ctrl);
-			}
-			dirty_gui();
-			
-			Inhibit(true)
-		});
+		Inhibit(true)
+	});
+	
+	store_btn.connect_button_press_event(move |_, _| {
+		// If the other is on, turn it off
+		if get_gui_state() == GuiState::Store {
+			set_gui_state(GuiState::Normal);
+		} else {
+			set_gui_state(GuiState::Store);
+		}
+		dirty_gui();
 		
-		store_btn.connect_button_press_event(move |_, _| {
-			// If the other is on, turn it off
-			if get_gui_state() == GuiState::Store {
-				set_gui_state(GuiState::Normal);
-			} else {
-				set_gui_state(GuiState::Store);
-			}
-			dirty_gui();
-			
-			Inhibit(true)
-		});
-		grid.attach(&shift_btn, 1, 0, 1, 1);
-		grid.attach(&ctrl_btn , 1, 1, 1, 1);
-		grid.attach(&store_btn, 1, 2, 1, 1);
-	}
+		Inhibit(true)
+	});
+	grid.attach(&shift_btn, 1, 0, 1, 1);
+	grid.attach(&ctrl_btn , 1, 1, 1, 1);
+	grid.attach(&store_btn, 1, 2, 1, 1);
 	
 	// Connect each individual button && atttch
 	make_and_attach_button(("x²", "xⁿ", ""), (ButtonID::Square, ButtonID::Pow, ButtonID::Null), &grid, 2, 0);
@@ -321,10 +334,10 @@ fn get_button_grid() -> Grid {
 }
 
 fn make_and_attach_button(labels: (&'static str, &'static str, &'static str), ids: (ButtonID, ButtonID, ButtonID), grid: &Grid, x: i32, y: i32) {
-	let but = Button::new().unwrap();
+	let but = Button::new();
 	but.set_size_request(75, -1); //23
 	but.set_hexpand(true);
-	but.set_focus_on_click(false);
+	WidgetExt::set_focus_on_click(&but, false);
 	but.set_label(labels.0);
 	let ids_clone = ids.clone();
 	but.connect_clicked(move |_| {
@@ -335,8 +348,7 @@ fn make_and_attach_button(labels: (&'static str, &'static str, &'static str), id
 		};
 	});update_button_attrib(&but, labels.2, &ids.2);
 	
-	but.connect_draw(move |widg, _| {
-		let but = Button::wrap_widget(widg.unwrap_widget());
+	but.connect_draw(move |but, _| {
 		match get_gui_state() {
 			GuiState::Normal    => { update_button_attrib(&but, labels.0, &ids.0); },
 			GuiState::Shift     => { update_button_attrib(&but, labels.1, &ids.1); },
@@ -401,9 +413,9 @@ pub fn get_gui_state() -> GuiState {
 }
 pub fn set_gui_state(state: GuiState) {
 	unsafe {
-		let shift_btn = CheckButton::wrap_widget(shift_btn_ptr);
-		let ctrl_btn  = CheckButton::wrap_widget(ctrl_btn_ptr );
-		let store_btn = CheckButton::wrap_widget(store_btn_ptr);
+		let shift_btn = ::get_check_buttons().shift_btn.clone();
+		let ctrl_btn  = ::get_check_buttons().ctrl_btn .clone();
+		let store_btn = ::get_check_buttons().store_btn.clone();
 		gui_state = state;
 		match state {
 			GuiState::Normal => { shift_btn.set_active(false); ctrl_btn.set_active(false); store_btn.set_active(false); },

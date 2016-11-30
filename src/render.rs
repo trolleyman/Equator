@@ -1,7 +1,5 @@
 use std::mem;
 
-use gtk::traits::*;
-
 use cairo::{Antialias, Context, FontOptions};
 use cairo::enums::FontSlant;
 use cairo::enums::FontWeight;
