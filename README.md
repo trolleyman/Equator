@@ -1,6 +1,8 @@
 # Equator
 Simple equation viewer/editor written in Rust.
 
+![](/img/example1.png)
+
 ## Instructions
 
 Type with your keyboard or press the buttons in the app to insert the mathematical constructs into the equation. The right hand side is automatically updated with the evaluation of the expression. You can navigate the equation by clicking where you want the cursor, or alternatively you can use the arrow keys.
@@ -26,6 +28,3 @@ Todo | Add grapher that can display the equation entered.
 Todo | Add equation 'history' that can be selected.
 Todo | Add 'infinite precision' numbers - surds, fractions, irrational constants and coefficients of these
 Todo | Add multiple types of numbers -- complex, matrices, etc.
-
-## Examples
-[!](img/example1.png)
