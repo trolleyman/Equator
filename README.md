@@ -28,4 +28,4 @@ Todo | Add 'infinite precision' numbers - surds, fractions, irrational constants
 Todo | Add multiple types of numbers -- complex, matrices, etc.
 
 ## Examples
-[!](img/example1.png)
+![](/img/example1.png)
