@@ -26,3 +26,6 @@ Todo | Add grapher that can display the equation entered.
 Todo | Add equation 'history' that can be selected.
 Todo | Add 'infinite precision' numbers - surds, fractions, irrational constants and coefficients of these
 Todo | Add multiple types of numbers -- complex, matrices, etc.
+
+## Examples
+[!](img/example1.png)
