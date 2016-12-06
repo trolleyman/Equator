@@ -1,7 +1,7 @@
 # Equator
 Simple equation viewer/editor written in Rust.
 
-![](/img/example1.png)
+![](/example1.png)
 
 ## Instructions
 
