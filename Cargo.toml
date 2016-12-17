@@ -12,4 +12,4 @@ lazy_static = "0.2.2"
 
 [dependencies.gtk]
 version = "0.1.1"
-features = ["v3_22"]
+features = ["v3_20"]
