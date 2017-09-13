@@ -12,3 +12,6 @@ lazy_static = "*"
 [dependencies.gtk]
 version = "*"
 features = ["v3_22"]
+
+[target.'cfg(windows)'.dependencies]
+kernel32-sys = "*"

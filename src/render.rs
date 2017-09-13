@@ -188,6 +188,7 @@ impl<'a> Render<'a> {
 	
 	#[allow(unused_variables)]
 	pub fn render(&mut self, alloc_w: f64, alloc_h: f64) -> Extent {
+		// TODO: Load font face from 'resources/Computer Modern.ttf'
 		self.c.select_font_face("CMU Serif", FontSlant::Normal, FontWeight::Normal);
 		self.c.set_font_size(INIT_FONT_SIZE);
 		self.c.set_antialias(Antialias::Best);
