@@ -191,10 +191,10 @@ impl<'a> Render<'a> {
 		self.c.select_font_face("CMU Serif", FontSlant::Normal, FontWeight::Normal);
 		self.c.set_font_size(INIT_FONT_SIZE);
 		self.c.set_antialias(Antialias::Best);
-		let opt = FontOptions::new();
+		let mut opt = FontOptions::new();
 		opt.set_antialias(Antialias::Best);
 		opt.set_hint_style(HintStyle::Medium);
-		self.c.set_font_options(opt);
+		self.c.set_font_options(&opt);
 		self.c.identity_matrix();
 		
 		self.exts = Extents::new();
@@ -287,7 +287,7 @@ impl<'a> Render<'a> {
 		
 		{ // Replace `^(x)` with `□^(x)`
 			let mut i = 0;
-			let mut toks = &mut expr.borrow_mut().tokens;
+			let toks = &mut expr.borrow_mut().tokens;
 			loop {
 				if i >= toks.len() {
 					break;
@@ -469,7 +469,7 @@ impl<'a> Render<'a> {
 			//self.exts.push(full_extent, Cursor::with_ex(expr.clone()));
 			// Replace `□` with ``
 			let mut i: i64 = 0;
-			let mut toks = &mut expr.borrow_mut().tokens;
+			let toks = &mut expr.borrow_mut().tokens;
 			loop {
 				if i >= toks.len() as i64 {
 					break;
@@ -745,10 +745,10 @@ pub fn render_result(c: &Context, res: Result<d128, ParseError>, alloc_w: f64, a
 	c.select_font_face("CMU Serif", FontSlant::Normal, FontWeight::Normal);
 	c.set_font_size(INIT_FONT_SIZE);
 	c.set_antialias(Antialias::Best);
-	let opt = FontOptions::new();
+	let mut opt = FontOptions::new();
 	opt.set_antialias(Antialias::Best);
 	opt.set_hint_style(HintStyle::Medium);
-	c.set_font_options(opt);
+	c.set_font_options(&opt);
 	
 	let ext = path_str(c, &s);
 	let (mut x, mut y) = align(&ext, 15.0, alloc_h / 2.0, MidRight);

@@ -1,5 +1,5 @@
 use gtk::prelude::*;
-use gtk::*;
+use gtk::{Frame, ButtonBox, Window, EventBox, Grid, RadioButton, Button, DrawingArea, CheckButton, Orientation, ReliefStyle};
 
 use gdk;
 use gdk::enums::key;
@@ -8,7 +8,7 @@ use cairo::Context;
 
 use edit::Editor;
 use render::{Render, Extent, render_result};
-use com::*;
+use com::expr_to_commands;
 
 pub struct CheckButtons {
 	shift_btn: CheckButton,
@@ -235,18 +235,18 @@ fn get_button_grid() -> Grid {
 	// Insert the radians/degrees selector
 	let frame = Frame::new(None);
 	{
-		let rb_radians = RadioButton::new_with_mnemonic_from_widget(None, "Radians");
-		WidgetExt::set_focus_on_click(&rb_radians, false);
+		let rb_radians = RadioButton::new_with_mnemonic("Radians");
+		rb_radians.set_focus_on_click(false);
 		rb_radians.set_relief(ReliefStyle::None);
 		rb_radians.connect_clicked(|but| { if but.get_active() { set_trig_mode(TrigMode::Radians); } });
 		
-		let rb_degrees = RadioButton::new_with_mnemonic_from_widget(Some(&rb_radians), "Degrees");
-		WidgetExt::set_focus_on_click(&rb_degrees, false);
+		let rb_degrees = RadioButton::new_with_mnemonic_from_widget(&rb_radians, "Degrees");
+		rb_degrees.set_focus_on_click(false);
 		rb_degrees.set_relief(ReliefStyle::None);
 		rb_degrees.connect_clicked(|but| { if but.get_active() { set_trig_mode(TrigMode::Degrees); } });
 		
-		let rb_gradians = RadioButton::new_with_mnemonic_from_widget(Some(&rb_radians), "Gradians");
-		WidgetExt::set_focus_on_click(&rb_gradians, false);
+		let rb_gradians = RadioButton::new_with_mnemonic_from_widget(&rb_radians, "Gradians");
+		rb_gradians.set_focus_on_click(false);
 		rb_gradians.set_relief(ReliefStyle::None);
 		rb_gradians.connect_clicked(|but| { if but.get_active() { set_trig_mode(TrigMode::Gradians); } });
 		
@@ -264,11 +264,11 @@ fn get_button_grid() -> Grid {
 	let ctrl_btn  = ::get_check_buttons().ctrl_btn .clone();
 	let store_btn = ::get_check_buttons().store_btn.clone();
 	shift_btn.set_mode(false);
-	WidgetExt::set_focus_on_click(&shift_btn, false);
+	shift_btn.set_focus_on_click(false);
 	ctrl_btn .set_mode(false);
-	WidgetExt::set_focus_on_click(&ctrl_btn , false);
+	ctrl_btn .set_focus_on_click(false);
 	store_btn.set_mode(false);
-	WidgetExt::set_focus_on_click(&store_btn, false);
+	store_btn.set_focus_on_click(false);
 	
 	shift_btn.connect_button_press_event(move |_, _| {
 		// If the other is on, turn it off
@@ -332,7 +332,7 @@ fn make_and_attach_button(labels: (&'static str, &'static str, &'static str), id
 	let but = Button::new();
 	but.set_size_request(75, -1); //23
 	but.set_hexpand(true);
-	WidgetExt::set_focus_on_click(&but, false);
+	but.set_focus_on_click(false);
 	but.set_label(labels.0);
 	let ids_clone = ids.clone();
 	but.connect_clicked(move |_| {

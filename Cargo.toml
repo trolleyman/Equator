@@ -4,12 +4,11 @@ version = "0.0.1"
 authors = ["Callum Tolley <cgtrolley@gmail.com>"]
 
 [dependencies]
-gtk-sys = "0.3.2"
-gdk = "0.5.1"
-cairo-rs = "0.1.1"
-decimal = { git = "https://github.com/alkis/decimal" }
-lazy_static = "0.2.2"
+gdk = "*"
+cairo-rs = "*"
+decimal = "*"
+lazy_static = "*"
 
 [dependencies.gtk]
-version = "0.1.1"
-features = ["v3_20"]
+version = "*"
+features = ["v3_22"]

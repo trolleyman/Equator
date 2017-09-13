@@ -3,6 +3,10 @@ Simple equation viewer/editor/calculator written in Rust.
 
 ![](/example1.png)
 
+## Building
+
+This requires [gtk-rs](http://gtk-rs.org/docs-src/requirements.html).
+
 ## Instructions
 
 Type with your keyboard or press the buttons in the app to insert the mathematical constructs into the equation. The right hand side is automatically updated with the evaluation of the expression. You can navigate the equation by clicking where you want the cursor, or alternatively you can use the arrow keys.

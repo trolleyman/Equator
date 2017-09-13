@@ -1,7 +1,6 @@
-#![feature(box_syntax, const_fn, associated_consts)]
+#![feature(box_syntax, const_fn)]
 #![allow(non_upper_case_globals)]
 extern crate gtk;
-extern crate gtk_sys;
 extern crate gdk;
 extern crate cairo;
 #[macro_use]
@@ -13,7 +12,6 @@ use gtk::prelude::*;
 use gtk::{Window, WindowType, WindowPosition};
 
 use std::ptr;
-//use std::mem;
 
 pub mod num;
 pub mod vis;
