@@ -111,17 +111,16 @@ fn cfg_settings() {
 
 #[cfg(windows)]
 fn cfg_settings_win_10() {
-	/*
-	let css_provider = gtk::CssProvider::new();
-	if let Err(e) = css_provider.load_from_path("resources/win10-theme/gtk.css") {
-		println!("Warning: Could not load Windows 10 theme: {}", e);
-		return;
-	}
-	let screen = gdk::Screen::get_default().expect("GTK could not be initialized");
-	gtk::StyleContext::add_provider_for_screen(&screen, &css_provider, gtk::STYLE_PROVIDER_PRIORITY_USER);
-	*/
-	// For now, just cope with win32
-	cfg_settings_win_7();
+	// let css_provider = gtk::CssProvider::new();
+	// if let Err(e) = css_provider.load_from_path("resources/win32-extra-theme/gtk.css") {
+	// 	println!("Warning: Could not load win32-extra theme: {}", e);
+	// 	return;
+	// }
+	// let screen = gdk::Screen::get_default().expect("GTK could not be initialized");
+	// gtk::StyleContext::add_provider_for_screen(&screen, &css_provider, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+	
+	let gtk_settings = gtk::Settings::get_default().expect("GTK could not be initialized");
+	gtk_settings.set_property("gtk-theme-name", &"win32".to_value()).expect("GTK could not be initialized");
 }
 
 #[cfg(windows)]
